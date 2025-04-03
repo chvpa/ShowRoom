@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import CatalogPage from "./pages/catalog";
+import UsersPage from "./pages/users";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/layout";
 
@@ -46,6 +47,11 @@ const App = () => (
           <Route path="/presale" element={
             <Layout activePage="presale">
               <PresalePage />
+            </Layout>
+          } />
+          <Route path="/users" element={
+            <Layout activePage="users">
+              <UsersPage />
             </Layout>
           } />
           <Route path="*" element={<NotFound />} />

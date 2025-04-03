@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -10,35 +9,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Settings, LogOut, User } from 'lucide-react';
+import { User, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const Header = () => {
   return (
-    <header className="h-16 border-b flex items-center justify-end px-6 bg-background">
-      <div className="flex items-center gap-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Settings size={18} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem className="cursor-pointer">
-              <User size={16} className="mr-2" />
-              <span>Perfil</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
-              <Settings size={16} className="mr-2" />
-              <span>Configuración</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer text-destructive">
-              <LogOut size={16} className="mr-2" />
-              <span>Cerrar sesión</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
+    <header className="h-16 border-b flex items-center justify-end px-4 md:px-6 bg-background">
+      <div className="flex items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -51,10 +28,15 @@ const Header = () => {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">Perfil</DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">Configuración</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer">
+              <User size={16} className="mr-2" />
+              <span>Perfil</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer text-destructive">Cerrar sesión</DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer text-destructive">
+              <LogOut size={16} className="mr-2" />
+              <span>Cerrar sesión</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
