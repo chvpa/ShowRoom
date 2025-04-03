@@ -1,8 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Upload } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import CSVUploader from '@/components/CSVUploader';
@@ -48,7 +47,7 @@ const ProductsPage = () => {
         return { ...product, total_stock: 0 };
       }
       
-      const totalStock = variants.reduce((sum, variant) => sum + (variant.stock_quantity || 0), 0);
+      const totalStock = variants?.reduce((sum, variant) => sum + (variant.stock_quantity || 0), 0) || 0;
       
       return { 
         ...product, 
