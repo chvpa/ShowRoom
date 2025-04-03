@@ -1,10 +1,18 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import CatalogPage from "./pages/catalog";
 import NotFound from "./pages/NotFound";
+import Layout from "./components/layout";
+
+// Placeholder pages
+const BrandsPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Marcas</h1></div>;
+const ProductsPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Productos</h1></div>;
+const OffersPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Ofertas</h1></div>;
+const PresalePage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Preventa</h1></div>;
 
 const queryClient = new QueryClient();
 
@@ -15,8 +23,31 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/" element={
+            <Layout activePage="catalog">
+              <CatalogPage />
+            </Layout>
+          } />
+          <Route path="/brands" element={
+            <Layout activePage="brands">
+              <BrandsPage />
+            </Layout>
+          } />
+          <Route path="/products" element={
+            <Layout activePage="products">
+              <ProductsPage />
+            </Layout>
+          } />
+          <Route path="/offers" element={
+            <Layout activePage="offers">
+              <OffersPage />
+            </Layout>
+          } />
+          <Route path="/presale" element={
+            <Layout activePage="presale">
+              <PresalePage />
+            </Layout>
+          } />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
