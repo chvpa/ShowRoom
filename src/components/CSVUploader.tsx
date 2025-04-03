@@ -187,6 +187,12 @@ const CSVUploader = () => {
             title: 'Productos subidos correctamente',
             description: `Se han subido ${total} productos.`,
           });
+          
+          // Reset the file input and uploading state
+          setIsUploading(false);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
         },
         error: (error) => {
           console.error('Error parsing CSV:', error);
@@ -195,12 +201,7 @@ const CSVUploader = () => {
             description: 'El formato del archivo no es correcto.',
             variant: 'destructive',
           });
-        },
-        complete: () => {
           setIsUploading(false);
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
         }
       });
     } catch (error) {
