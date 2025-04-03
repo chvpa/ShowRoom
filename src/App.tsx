@@ -5,15 +5,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import CatalogPage from "./pages/catalog";
-import UsersPage from "./pages/users";
+import ProductsPage from "./pages/products"; // Import the actual Products page
 import NotFound from "./pages/NotFound";
 import Layout from "./components/layout";
 
 // Placeholder pages
 const BrandsPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Marcas</h1></div>;
-const ProductsPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Productos</h1></div>;
 const OffersPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Ofertas</h1></div>;
 const PresalePage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Preventa</h1></div>;
+const UsersPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Usuarios</h1></div>;
 
 const queryClient = new QueryClient();
 
