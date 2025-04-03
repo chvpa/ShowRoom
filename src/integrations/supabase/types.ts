@@ -11,235 +11,83 @@ export type Database = {
     Tables: {
       brands: {
         Row: {
-          created_at: string | null
-          description: string | null
+          created_at: string
           id: string
-          is_visible: boolean
-          logo_url: string | null
           name: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          description?: string | null
+          created_at?: string
           id?: string
-          is_visible?: boolean
-          logo_url?: string | null
           name: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
-          description?: string | null
+          created_at?: string
           id?: string
-          is_visible?: boolean
-          logo_url?: string | null
           name?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
       categories: {
         Row: {
-          created_at: string | null
-          description: string | null
+          created_at: string
           id: string
-          is_visible: boolean
           name: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
-          created_at?: string | null
-          description?: string | null
+          created_at?: string
           id?: string
-          is_visible?: boolean
           name: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
-          created_at?: string | null
-          description?: string | null
+          created_at?: string
           id?: string
-          is_visible?: boolean
           name?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
-      offers: {
+      product_variants: {
         Row: {
-          category_ids: string[] | null
-          created_at: string | null
-          discount_percent: number
-          end_date: string
+          created_at: string
           id: string
-          is_active: boolean
-          min_quantity: number | null
-          product_ids: string[] | null
-          start_date: string
-          type: string
-          updated_at: string | null
+          product_id: string
+          reinforced_curve: number | null
+          simple_curve: number | null
+          size: string
+          stock_quantity: number | null
+          updated_at: string
         }
         Insert: {
-          category_ids?: string[] | null
-          created_at?: string | null
-          discount_percent: number
-          end_date: string
+          created_at?: string
           id?: string
-          is_active?: boolean
-          min_quantity?: number | null
-          product_ids?: string[] | null
-          start_date: string
-          type: string
-          updated_at?: string | null
+          product_id: string
+          reinforced_curve?: number | null
+          simple_curve?: number | null
+          size: string
+          stock_quantity?: number | null
+          updated_at?: string
         }
         Update: {
-          category_ids?: string[] | null
-          created_at?: string | null
-          discount_percent?: number
-          end_date?: string
+          created_at?: string
           id?: string
-          is_active?: boolean
-          min_quantity?: number | null
-          product_ids?: string[] | null
-          start_date?: string
-          type?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      order_items: {
-        Row: {
-          created_at: string | null
-          id: string
-          order_id: string | null
-          product_id: string | null
-          product_name: string
-          quantity: number
-          total_price: number
-          unit_price: number
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          order_id?: string | null
-          product_id?: string | null
-          product_name: string
-          quantity: number
-          total_price: number
-          unit_price: number
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          order_id?: string | null
-          product_id?: string | null
-          product_name?: string
-          quantity?: number
-          total_price?: number
-          unit_price?: number
+          product_id?: string
+          reinforced_curve?: number | null
+          simple_curve?: number | null
+          size?: string
+          stock_quantity?: number | null
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "order_items_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "order_items_product_id_fkey"
+            foreignKeyName: "product_variants_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      orders: {
-        Row: {
-          created_at: string | null
-          id: string
-          payment_method: string
-          payment_status: string
-          shipping_address: string
-          status: string
-          total_amount: number
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          payment_method: string
-          payment_status: string
-          shipping_address: string
-          status: string
-          total_amount: number
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          payment_method?: string
-          payment_status?: string
-          shipping_address?: string
-          status?: string
-          total_amount?: number
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "orders_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      pre_order_seasons: {
-        Row: {
-          brand_id: string | null
-          created_at: string | null
-          description: string | null
-          end_date: string
-          id: string
-          is_active: boolean
-          name: string
-          start_date: string
-          updated_at: string | null
-        }
-        Insert: {
-          brand_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          end_date: string
-          id?: string
-          is_active?: boolean
-          name: string
-          start_date: string
-          updated_at?: string | null
-        }
-        Update: {
-          brand_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          end_date?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          start_date?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pre_order_seasons_brand_id_fkey"
-            columns: ["brand_id"]
-            isOneToOne: false
-            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
@@ -248,44 +96,50 @@ export type Database = {
         Row: {
           brand_id: string | null
           category_id: string | null
-          created_at: string | null
-          description: string
+          created_at: string
+          description: string | null
+          gender: string | null
           id: string
           images: string[] | null
-          is_visible: boolean
           name: string
-          price: number
+          price: number | null
+          product_type: string | null
+          silhouette: string | null
           sku: string
-          stock_quantity: number
-          updated_at: string | null
+          status: string | null
+          updated_at: string
         }
         Insert: {
           brand_id?: string | null
           category_id?: string | null
-          created_at?: string | null
-          description: string
+          created_at?: string
+          description?: string | null
+          gender?: string | null
           id?: string
           images?: string[] | null
-          is_visible?: boolean
           name: string
-          price: number
+          price?: number | null
+          product_type?: string | null
+          silhouette?: string | null
           sku: string
-          stock_quantity?: number
-          updated_at?: string | null
+          status?: string | null
+          updated_at?: string
         }
         Update: {
           brand_id?: string | null
           category_id?: string | null
-          created_at?: string | null
-          description?: string
+          created_at?: string
+          description?: string | null
+          gender?: string | null
           id?: string
           images?: string[] | null
-          is_visible?: boolean
           name?: string
-          price?: number
+          price?: number | null
+          product_type?: string | null
+          silhouette?: string | null
           sku?: string
-          stock_quantity?: number
-          updated_at?: string | null
+          status?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -303,45 +157,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      users: {
-        Row: {
-          allow_preorders: boolean
-          company_name: string | null
-          created_at: string | null
-          email: string
-          full_name: string
-          id: string
-          is_active: boolean
-          phone_number: string | null
-          role: string
-          updated_at: string | null
-        }
-        Insert: {
-          allow_preorders?: boolean
-          company_name?: string | null
-          created_at?: string | null
-          email: string
-          full_name: string
-          id?: string
-          is_active?: boolean
-          phone_number?: string | null
-          role: string
-          updated_at?: string | null
-        }
-        Update: {
-          allow_preorders?: boolean
-          company_name?: string | null
-          created_at?: string | null
-          email?: string
-          full_name?: string
-          id?: string
-          is_active?: boolean
-          phone_number?: string | null
-          role?: string
-          updated_at?: string | null
-        }
-        Relationships: []
       }
     }
     Views: {
