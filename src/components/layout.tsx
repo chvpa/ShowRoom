@@ -86,10 +86,6 @@ const Layout = ({ children, activePage = "catalog" }: LayoutProps) => {
           <div className="flex flex-col h-full">
             <Header />
             <main className="flex-1 p-4 md:p-6">
-              <div className="flex items-center mb-4">
-                <SidebarTrigger className="mr-2 md:hidden" />
-                {/* You could add a breadcrumb or page title here */}
-              </div>
               {children}
             </main>
           </div>

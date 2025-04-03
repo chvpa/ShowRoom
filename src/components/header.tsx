@@ -9,13 +9,20 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 const Header = () => {
   return (
-    <header className="h-16 border-b flex items-center justify-end px-4 md:px-6 bg-background">
+    <header className="h-16 border-b flex items-center justify-between px-4 md:px-6 bg-background">
       <div className="flex items-center">
+        <SidebarTrigger className="md:hidden" />
+      </div>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+          <ShoppingCart size={20} />
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
