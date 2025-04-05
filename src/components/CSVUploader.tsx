@@ -21,6 +21,7 @@ interface ProductCSVRow {
   'curva reforzada': string;
   talla: string;
   'Cantidad Disponible': string;
+  Precio: string;
   IMAGEN_1: string;
   IMAGEN_2: string;
   IMAGEN_3: string;
@@ -179,6 +180,8 @@ const CSVUploader = () => {
                     brand_id: brandId,
                     product_type: productData.rubro,
                     status: productData.estado,
+                    price: Number(productData.Precio) || 0,
+                    enabled: productData.estado === 'EN LINEA',
                     images
                   })
                   .eq('id', productId);
@@ -201,6 +204,8 @@ const CSVUploader = () => {
                     brand_id: brandId,
                     product_type: productData.rubro,
                     status: productData.estado,
+                    price: Number(productData.Precio) || 0,
+                    enabled: productData.estado === 'EN LINEA',
                     images
                   })
                   .select('id')

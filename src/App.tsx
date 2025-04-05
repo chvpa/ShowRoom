@@ -8,6 +8,9 @@ import CatalogPage from "./pages/catalog";
 import ProductsPage from "./pages/products";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/layout";
+import BrandSelectionPage from "./pages/brand-selection";
+import ProductDetailPage from "./pages/product-detail";
+import CartPage from "./pages/cart";
 
 // Placeholder pages
 const BrandsPage = () => <div className="p-6"><h1 className="text-3xl font-semibold">Marcas</h1></div>;
@@ -26,9 +29,20 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
+            <Route path="/brand-selection" element={<BrandSelectionPage />} />
             <Route path="/" element={
               <Layout activePage="catalog">
                 <CatalogPage />
+              </Layout>
+            } />
+            <Route path="/product/:id" element={
+              <Layout activePage="catalog">
+                <ProductDetailPage />
+              </Layout>
+            } />
+            <Route path="/cart" element={
+              <Layout activePage="cart">
+                <CartPage />
               </Layout>
             } />
             <Route path="/brands" element={

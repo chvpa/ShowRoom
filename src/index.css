@@ -1,7 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 
 @layer base {
   :root {
@@ -98,7 +100,14 @@
   }
 
   body {
+    font-family: 'Geist', sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
     @apply bg-background text-foreground;
+  }
+  
+  h1 {
+    letter-spacing: -1.8px;
   }
 }
 

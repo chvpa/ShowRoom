@@ -11,6 +11,10 @@ export default {
 	],
 	prefix: "",
 	theme: {
+		fontFamily: {
+			sans: ['Geist', 'sans-serif'],
+			mono: ['monospace']
+		},
 		container: {
 			center: true,
 			padding: '2rem',

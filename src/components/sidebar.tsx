@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import Logo from './logo';
@@ -10,6 +9,7 @@ import {
   Percent, 
   Clock 
 } from 'lucide-react';
+import { Select } from '@/components/ui/select';
 
 type NavItemProps = {
   icon: React.ElementType;
@@ -40,6 +40,14 @@ type SidebarProps = {
 };
 
 const Sidebar = ({ activePage = "catalog" }: SidebarProps) => {
+  const [selectedBrand, setSelectedBrand] = useState('');
+
+  const handleBrandChange = (event) => {
+    const brand = event.target.value;
+    setSelectedBrand(brand);
+    // Aquí podrías redirigir al catálogo de la nueva marca seleccionada
+  };
+
   const navItems = [
     { icon: Layers, label: "Catálogo", href: "/", id: "catalog" },
     { icon: Tag, label: "Marcas", href: "/brands", id: "brands" },
@@ -52,6 +60,12 @@ const Sidebar = ({ activePage = "catalog" }: SidebarProps) => {
     <aside className="w-64 border-r bg-sidebar fixed inset-y-0 flex flex-col">
       <div className="p-6">
         <Logo />
+        <Select value={selectedBrand} onChange={handleBrandChange} className="mt-4">
+          <option value="">Selecciona una marca</option>
+          <option value="CAT">CAT</option>
+          <option value="New Balance">New Balance</option>
+          {/* Agregar más opciones de marca según sea necesario */}
+        </Select>
       </div>
       <div className="px-3 py-2">
         <nav className="space-y-1">
