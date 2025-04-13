@@ -1,12 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Shirt, Footprints, Watch, ChevronRight } from 'lucide-react';
-import { supabase } from "@/integrations/supabase/client";
+import { Shirt, Footprints, Watch, ChevronRight, Loader2, Backpack } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBrand } from '@/contexts/brand-context';
+import { Brand, Product } from '@/types';
+import { useSupabaseQuery } from '@/hooks/use-supabase-query';
+import { supabase } from '@/integrations/supabase/client';
 
 type CategoryCardProps = {
   title: string;
@@ -17,7 +18,7 @@ type CategoryCardProps = {
 
 const CategoryCard = ({ title, icon: Icon, description, onClick }: CategoryCardProps) => {
   return (
-    <Card className="category-card overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={onClick}>
+    <Card className="category-card overflow-hidden cursor-pointer hover:shadow-md transition-shadow justify-between flex flex-col" onClick={onClick}>
       <CardContent className="p-6 flex flex-col items-center text-center gap-4">
         <div className="h-16 w-16 rounded-full bg-secondary flex items-center justify-center">
           <Icon size={32} />
@@ -34,43 +35,17 @@ const CategoryCard = ({ title, icon: Icon, description, onClick }: CategoryCardP
   );
 };
 
-interface Product {
-  id: string;
-  sku: string;            // codigo in CSV
-  name: string;           // descripcion in CSV
-  description: string | null;
-  silhouette: string | null;  // silueta in CSV
-  gender: string | null;      // genero in CSV
-  category_id: string | null; 
-  brand_id: string | null;    // marca in CSV (should store brand name or ID)
-  product_type: string | null; // categoria in CSV
-  rubro: string | null;       // rubro in CSV (prendas, calzados, accesorios)
-  status: string | null;      // estado in CSV
-  curva_simple: number | null;    // curva simple in CSV
-  curva_reforzada: number | null; // curva reforzada in CSV
-  talla: string | null;           // talla in CSV
-  price: number | null;           // Precio in CSV
-  stock_quantity: number | null;  // Cantidad Disponible in CSV
-  images: string[] | null;        // IMAGEN_1 to IMAGEN_5 in CSV
-  created_at: string;
-  updated_at: string;
-  // Custom fields for UI purposes
-  category?: string;
-  total_stock?: number;
-  enabled?: boolean;
-}
-
-interface Brand {
-  id: string;
-  name: string;
-  logo: string;
-}
-
 const ProductCard = ({ product }: { product: Product }) => {
   const navigate = useNavigate();
+  const { selectedBrand } = useBrand();
   
   const handleClick = () => {
-    navigate(`/product/${product.id}`);
+    // Usar la nueva ruta con marca en la URL
+    if (selectedBrand) {
+      navigate(`/${selectedBrand.name.toLowerCase()}/producto/${product.id}`);
+    } else {
+      navigate(`/product/${product.id}`);
+    }
   };
   
   return (
@@ -107,11 +82,63 @@ const ProductCard = ({ product }: { product: Product }) => {
 
 const CatalogPage = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [currentBrand, setCurrentBrand] = useState<Brand | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { selectedBrand, selectBrand, userBrands } = useBrand();
+  // Obtener el parámetro de marca de la URL
+  const { marcaSlug } = useParams<{ marcaSlug?: string }>();
+  
+  // Efecto para seleccionar la marca basada en el parámetro de la URL
+  useEffect(() => {
+    const loadBrandFromSlug = async () => {
+      if (marcaSlug && (!selectedBrand || selectedBrand.name.toLowerCase() !== marcaSlug.toLowerCase())) {
+        console.log('Cargando marca desde URL slug:', marcaSlug);
+        // Primero intentar encontrar la marca en las marcas del usuario
+        const brandFromUserBrands = userBrands.find(
+          brand => brand.name.toLowerCase() === marcaSlug.toLowerCase()
+        );
+        
+        if (brandFromUserBrands) {
+          console.log('Marca encontrada en userBrands:', brandFromUserBrands.name);
+          selectBrand(brandFromUserBrands);
+        } else {
+          // Si no está en las marcas del usuario, buscar en la base de datos
+          console.log('Buscando marca en base de datos:', marcaSlug);
+          const { data, error } = await supabase
+            .from('brands')
+            .select('*')
+            .ilike('name', marcaSlug)
+            .maybeSingle();
+            
+          if (data && !error) {
+            console.log('Marca encontrada en base de datos:', data.name);
+            selectBrand(data);
+          } else {
+            // Si no se encuentra la marca, redirigir a la selección de marca
+            console.error('Marca no encontrada, error:', error);
+            navigate('/brand-selection');
+            toast({
+              title: "Marca no encontrada",
+              description: "La marca especificada en la URL no existe o no tienes acceso a ella",
+              variant: "destructive",
+            });
+          }
+        }
+      }
+    };
+    
+    loadBrandFromSlug();
+  }, [marcaSlug, selectedBrand, userBrands, selectBrand, navigate, toast]);
+
+  // Redirect to brand selection if no brand is selected
+  if (!selectedBrand) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p>Cargando catálogo...</p>
+      </div>
+    );
+  }
 
   const categories = [
     {
@@ -124,127 +151,60 @@ const CatalogPage = () => {
       id: "calzados",
       title: "Calzados",
       icon: Footprints,
-      description: "Descubre los mejores calzados para cada ocasión"
+      description: "Descubre el mejor calzado para cada ocasión"
     },
     {
       id: "accesorios",
       title: "Accesorios",
-      icon: Watch,
-      description: "Complementa tu estilo con nuestra selección de accesorios"
+      icon: Backpack,
+      description: "Complementa tu estilo con nuestra colección de accesorios"
     }
   ];
 
-  useEffect(() => {
-    // Obtener la marca seleccionada del localStorage
-    const selectedBrandId = localStorage.getItem('selectedBrandId');
-    
-    if (!selectedBrandId) {
-      // Si no hay marca seleccionada, redirigir a la página de selección de marca
-      navigate('/brand-selection');
-      return;
-    }
-    
-    // Obtener información de la marca seleccionada
-    fetchBrandInfo(selectedBrandId);
-  }, [navigate]);
-
-  useEffect(() => {
-    if (selectedCategory && currentBrand) {
-      fetchProductsByCategory(selectedCategory, currentBrand.id);
-    }
-  }, [selectedCategory, currentBrand]);
-
-  const fetchBrandInfo = async (brandId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('brands')
-        .select('*')
-        .eq('id', brandId)
-        .single();
+  // Use React Query to fetch products filtered by brand and category
+  const { data: productsResponse, isLoading } = useSupabaseQuery<Product>(
+    ['products', selectedBrand.id, selectedCategory], // Query key includes brand and category
+    'products',
+    async (query) => {
+      console.log('Consultando productos para catálogo - Marca:', selectedBrand.name, 'Categoría:', selectedCategory);
       
-      if (error) throw error;
-      
-      setCurrentBrand(data);
-    } catch (error) {
-      console.error('Error fetching brand info:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo cargar la información de la marca.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const fetchProductsByCategory = async (category: string, brandId: string) => {
-    try {
-      setLoading(true);
-      
-      // Obtener todos los productos de la marca seleccionada
-      // Separar la consulta en pasos para evitar la instantiación de tipo excesivamente profunda
-      const query = supabase
+      let baseQuery = query
         .from('products')
         .select('*')
-        .eq('brand_id', brandId)
-        .eq('enabled', true);
-        
-      const { data, error } = await query;
+        .eq('enabled', true)
+        .eq('brand', selectedBrand.name); // Filter by selected brand name, not id
       
-      if (error) throw error;
+      // Only apply category filter if a category is selected
+      if (selectedCategory) {
+        // El valor en el CSV está en mayúsculas, pero el id de categoría en minúsculas
+        const categoryUppercase = selectedCategory.toUpperCase();
+        console.log('Buscando productos con product_type:', categoryUppercase);
+        baseQuery = baseQuery.eq('product_type', categoryUppercase);
+      }
       
-      // Convertir los datos a tipo Product para evitar errores de TypeScript
-      const productsData = data as unknown as Product[];
+      const { data, error } = await baseQuery;
       
-      // Filtrar los productos por categoría usando el campo 'rubro'
-      // Convertimos todo a minúsculas para la comparación
-      const filteredProducts = productsData?.filter(product => {
-        // Normalizar el rubro del producto (minúsculas, sin espacios extras)
-        const normalizedRubro = (product.rubro || '').toLowerCase().trim();
-        const normalizedTargetCategory = category.toLowerCase().trim();
-        
-        // Si el rubro está definido, usamos ese campo directamente
-        if (normalizedRubro) {
-          return normalizedRubro === normalizedTargetCategory ||
-                 normalizedRubro.includes(normalizedTargetCategory) ||
-                 normalizedTargetCategory.includes(normalizedRubro);
-        }
-        
-        // Si el rubro no está definido, intentamos inferirlo del product_type
-        const normalizedProductType = (product.product_type || '').toLowerCase().trim();
-        
-        // Mapeo entre categorías de UI y valores del campo product_type
-        const categoryMap: Record<string, string[]> = {
-          'prendas': ['prendas', 'prenda', 'ropa', 'indumentaria', 'vestimenta'],
-          'calzados': ['calzados', 'calzado', 'zapato', 'zapatilla', 'bota'],
-          'accesorios': ['accesorios', 'accesorio', 'complemento', 'joya', 'reloj', 'bolso']
-        };
-        
-        // Verificar si el tipo de producto corresponde a la categoría seleccionada
-        return categoryMap[normalizedTargetCategory]?.some(value => 
-          normalizedProductType === value || 
-          normalizedProductType.includes(value) || 
-          value.includes(normalizedProductType)
-        ) || false;
-      }) || [];
+      if (error) {
+        console.error('Error al consultar productos para catálogo:', error);
+        throw error;
+      }
       
-      console.log(`Filtrando productos para categoría '${category}':`, {
-        totalProductos: productsData?.length || 0,
-        productosFiltrados: filteredProducts.length,
-        rubrosEncontrados: [...new Set(productsData?.map(p => p.rubro) || [])],
-        tiposEncontrados: [...new Set(productsData?.map(p => p.product_type) || [])]
-      });
+      console.log('Productos encontrados en catálogo:', data?.length || 0);
       
-      setProducts(filteredProducts);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los productos.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      return { 
+        data: data || [], 
+        error: null, 
+        count: data?.length || 0 
+      };
+    },
+    {
+      enabled: !!selectedCategory, // Solo ejecutar la consulta cuando se selecciona una categoría
+      staleTime: 1000 * 60 * 5, // 5 minutes cache
     }
-  };
+  );
+
+  // Extraer los productos de la respuesta
+  const products = productsResponse?.data || [];
 
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategory(categoryId);
@@ -253,14 +213,12 @@ const CatalogPage = () => {
   return (
     <div className="p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold">
-          {currentBrand ? `Catálogo ${currentBrand.name}` : 'Catálogo'}
+        <h1 className="text-2xl font-semibold lg:text-3xl">
+          Catálogo de {selectedBrand.name}
         </h1>
-        {currentBrand && (
-          <p className="text-muted-foreground mt-2">
-            Explora todos los productos disponibles de {currentBrand.name}
-          </p>
-        )}
+        <p className="text-muted-foreground mt-2">
+          Explora todos los productos disponibles
+        </p>
       </div>
 
       {!selectedCategory ? (
@@ -290,8 +248,9 @@ const CatalogPage = () => {
               {categories.find(c => c.id === selectedCategory)?.title}
             </h2>
             
-            {loading ? (
-              <div className="text-center py-12">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
                 <p>Cargando productos...</p>
               </div>
             ) : products.length > 0 ? (
@@ -302,9 +261,7 @@ const CatalogPage = () => {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">
-                  No hay productos disponibles en esta categoría.
-                </p>
+                <p className="text-muted-foreground">No se encontraron productos en esta categoría</p>
               </div>
             )}
           </div>

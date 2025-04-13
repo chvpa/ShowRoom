@@ -1,113 +1,122 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-
-interface Brand {
-  id: string;
-  name: string;
-  logo: string;
-}
+import { Loader2 } from 'lucide-react';
+import { useBrand } from '@/contexts/brand-context';
 
 const BrandSelectionPage = () => {
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { userBrands, isLoading, selectBrand } = useBrand();
 
+  // Auto-redirect if user only has access to one brand
   useEffect(() => {
-    fetchUserBrands();
-  }, []);
+    if (!isLoading && userBrands.length === 1) {
+      handleBrandSelect(userBrands[0].id);
+      handleContinue(userBrands[0].id);
+    }
+  }, [userBrands, isLoading]);
 
-  const fetchUserBrands = async () => {
-    try {
-      setLoading(true);
-      
-      // Aquí obtendrías las marcas a las que el usuario tiene acceso
-      // Por ahora, usamos datos de ejemplo
-      const { data, error } = await supabase
-        .from('brands')
-        .select('*')
-        // En una implementación real, filtrarías por las marcas a las que el usuario tiene acceso
-        // .eq('user_id', currentUserId)
-      
-      if (error) throw error;
-      
-      // Transformar los datos para asegurarnos de que incluyan el campo logo
-      const brandsWithLogo = (data || []).map(brand => ({
-        ...brand,
-        logo: brand.logo || '' // Aseguramos que exista el campo logo
-      }));
-      
-      setBrands(brandsWithLogo);
-    } catch (error) {
-      console.error('Error fetching brands:', error);
+  const handleBrandSelect = (brandId: string) => {
+    setSelectedBrandId(brandId);
+  };
+
+  const handleContinue = (brandId?: string) => {
+    const brandToUse = brandId || selectedBrandId;
+    
+    if (!brandToUse) {
       toast({
-        title: "Error",
-        description: "No se pudieron cargar las marcas. Por favor, intenta nuevamente.",
+        title: "Selección requerida",
+        description: "Por favor selecciona una marca para continuar",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      return;
+    }
+    
+    // Find the brand object from the list
+    const brand = userBrands.find(b => b.id === brandToUse);
+    
+    if (brand) {
+      // Use the context to set the selected brand
+      selectBrand(brand);
+      
+      // Redirect to the catalog with the new URL format
+      navigate(`/${brand.name.toLowerCase()}/catalogo`);
+    } else {
+      toast({
+        title: "Marca no encontrada",
+        description: "La marca seleccionada no pudo ser encontrada",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleBrandSelect = (brandId: string) => {
-    // Guardar la marca seleccionada en localStorage o en un estado global
-    localStorage.setItem('selectedBrandId', brandId);
-    
-    // Redirigir al catálogo de la marca seleccionada
-    navigate('/catalog');
-  };
-
   return (
-    <div className="container mx-auto py-10">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Selecciona una marca</h1>
+    <div className="container flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] py-10">
+      <div className="w-full max-w-md space-y-8">
+        <h1 className="text-3xl font-bold text-center">Selecciona una Marca</h1>
         
-        {loading ? (
-          <div className="flex justify-center">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p>Cargando marcas disponibles...</p>
           </div>
-        ) : brands.length === 0 ? (
-          <div className="text-center">
+        ) : userBrands.length === 0 ? (
+          <Card className="text-center p-6">
             <p className="text-lg text-muted-foreground">No tienes acceso a ninguna marca.</p>
             <p className="mt-2">Contacta a tu administrador para solicitar acceso.</p>
-          </div>
+          </Card>
+        ) : userBrands.length === 1 ? (
+          <Card className="text-center p-6">
+            <p className="text-lg">Redirigiendo a la única marca disponible...</p>
+            <div className="flex justify-center mt-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {brands.map((brand) => (
-              <Card key={brand.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                <CardHeader className="pb-2">
-                  <CardTitle>{brand.name}</CardTitle>
-                </CardHeader>
-                <CardContent className="pb-2">
-                  {brand.logo && (
-                    <div className="h-32 flex items-center justify-center p-4">
-                      <img 
-                        src={brand.logo} 
-                        alt={`${brand.name} logo`} 
-                        className="max-h-full max-w-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/placeholder.svg';
-                        }}
-                      />
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    className="w-full" 
-                    onClick={() => handleBrandSelect(brand.id)}
-                  >
-                    Seleccionar
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
+          <Card className="overflow-hidden shadow-sm">
+            <CardContent className="pt-6 space-y-6">
+              <Select 
+                value={selectedBrandId} 
+                onValueChange={handleBrandSelect}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecciona una marca" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userBrands.map((brand) => (
+                    <SelectItem key={brand.id} value={brand.id} className="py-3">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-6 w-6 flex-shrink-0">
+                          <img 
+                            src={brand.logo || '/placeholder.svg'} 
+                            alt={`Logo de ${brand.name}`} 
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/placeholder.svg';
+                            }}
+                          />
+                        </div>
+                        <span>{brand.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Button 
+                className="w-full" 
+                onClick={() => handleContinue()}
+                disabled={!selectedBrandId}
+              >
+                Continuar al Catálogo
+              </Button>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

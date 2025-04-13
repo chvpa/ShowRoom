@@ -9,6 +9,9 @@ import { ChevronLeft, Plus, Minus, ShoppingCart } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { useBrand } from "@/contexts/brand-context";
 
 interface Product {
   id: string;
@@ -16,35 +19,34 @@ interface Product {
   name: string;
   price: number;
   images: string[];
-  brand_id: string;
-  category_id?: string;
-  product_type?: string;
-  rubro?: string;
+  brand: string | null;
+  category: string | null;
   description?: string;
   gender?: string;
   silhouette?: string;
-  status?: string;
   enabled?: boolean;
-  original_sku?: string;
-  talla?: string;
-  curva_simple?: number;
-  curva_reforzada?: number;
-  stock_quantity?: number;
-  sizes?: ProductSize[];
+  variants?: ProductVariant[];
+  product_type?: string;
+  rubro?: string;
+  status?: string;
 }
 
-interface ProductSize {
-  sku: string;
-  talla: string;
-  curva_simple: number;
-  curva_reforzada: number;
+interface ProductVariant {
+  id: string;
+  product_id: string;
+  sku?: string;
+  size: string;
+  simple_curve: number;
+  reinforced_curve: number;
   stock_quantity: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 type CurveType = 'simple' | 'reinforced' | 'custom';
 
 const ProductDetailPage = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, marcaSlug } = useParams<{ id: string, marcaSlug?: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -52,6 +54,7 @@ const ProductDetailPage = () => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { selectedBrand } = useBrand();
 
   useEffect(() => {
     if (id) {
@@ -72,57 +75,68 @@ const ProductDetailPage = () => {
       
       if (productError) throw productError;
       
-      // Obtener todas las tallas del mismo producto (basado en el SKU base)
-      const baseSkuPattern = productData.sku.split('-')[0]; // Obtener el SKU base sin el sufijo de talla
-      const { data: sizesData, error: sizesError } = await supabase
-        .from('products')
+      // Fetch product variants
+      const { data: variantsData, error: variantsError } = await supabase
+        .from('product_variants')
         .select('*')
-        .like('sku', `${baseSkuPattern}%`)
-        .order('talla');
+        .eq('product_id', productId);
       
-      if (sizesError) throw sizesError;
+      if (variantsError) throw variantsError;
       
-      // Mapear los datos de tallas a nuestro formato
-      const productSizes: ProductSize[] = (sizesData || []).map((size: any) => ({
-        sku: size.sku,
-        talla: size.talla || '',
-        curva_simple: size.curva_simple || 0,
-        curva_reforzada: size.curva_reforzada || 0,
-        stock_quantity: size.stock_quantity || 0
-      }));
+      // Ordenar variantes por talla
+      const orderedVariants = [...(variantsData as ProductVariant[] || [])].sort((a, b) => {
+        // Función para convertir tallas alfanuméricas a valores numéricos para ordenar
+        const getSizeValue = (size: string) => {
+          // Si es un número (o número en formato string), convertir a número
+          if (!isNaN(Number(size))) {
+            return Number(size);
+          }
+          
+          // Para tallas como S, M, L, XL, etc.
+          const sizeMap: Record<string, number> = {
+            'XXS': 10,
+            'XS': 20,
+            'S': 30,
+            'M': 40,
+            'L': 50,
+            'XL': 60,
+            'XXL': 70,
+            'XXXL': 80
+          };
+          
+          const upperSize = size.toUpperCase();
+          
+          return sizeMap[upperSize] || 1000; // Valor por defecto alto para tallas desconocidas
+        };
+        
+        return getSizeValue(a.size) - getSizeValue(b.size);
+      });
       
-      // Combine product data with sizes
-      const productWithSizes: Product = {
-        id: productData.id,
-        sku: productData.sku,
-        name: productData.name,
-        price: productData.price || 0,
-        images: productData.images || [],
-        brand_id: productData.brand_id,
-        category_id: (productData as any).category_id,
-        product_type: (productData as any).product_type,
-        rubro: (productData as any).rubro,
-        description: productData.description,
-        gender: (productData as any).gender,
-        silhouette: (productData as any).silhouette,
-        status: (productData as any).status,
-        enabled: (productData as any).enabled,
-        // No usamos original_sku ya que ahora detectamos las tallas por el patrón del SKU
-        talla: (productData as any).talla,
-        curva_simple: (productData as any).curva_simple,
-        curva_reforzada: (productData as any).curva_reforzada,
-        stock_quantity: (productData as any).stock_quantity,
-        sizes: productSizes,
+      // Combine product data with ordered variants
+      const productWithVariants: Product = {
+        ...productData,
+        variants: orderedVariants,
       };
       
-      setProduct(productWithSizes);
+      setProduct(productWithVariants);
       
-      // Initialize quantities for each size
+      // Initialize quantities for each variant
       const initialQuantities: Record<string, number> = {};
-      productSizes.forEach(size => {
-        initialQuantities[size.talla] = 0;
+      orderedVariants.forEach((variant) => {
+        initialQuantities[variant.size || ''] = 0;
       });
       setQuantities(initialQuantities);
+      
+      // Aplicar la curva simple por defecto
+      setTimeout(() => {
+        if (orderedVariants.length > 0) {
+          const simpleQuantities: Record<string, number> = {};
+          orderedVariants.forEach((variant) => {
+            simpleQuantities[variant.size || ''] = variant.simple_curve || 0;
+          });
+          setQuantities(simpleQuantities);
+        }
+      }, 0);
       
     } catch (error) {
       console.error('Error fetching product details:', error);
@@ -136,40 +150,40 @@ const ProductDetailPage = () => {
     }
   };
 
-  const handleQuantityChange = (sizeTalla: string, value: number) => {
+  const handleQuantityChange = (size: string, value: number) => {
     // Ensure quantity doesn't go below 0 or above available stock
-    const size = product?.sizes?.find(s => s.talla === sizeTalla);
-    const maxStock = size?.stock_quantity || 0;
+    const variant = product?.variants?.find(v => v.size === size);
+    const maxStock = variant?.stock_quantity || 0;
     const newValue = Math.max(0, Math.min(value, maxStock));
     
     setQuantities(prev => ({
       ...prev,
-      [sizeTalla]: newValue
+      [size]: newValue
     }));
   };
 
-  const handleIncrement = (sizeTalla: string) => {
-    handleQuantityChange(sizeTalla, (quantities[sizeTalla] || 0) + 1);
+  const handleIncrement = (size: string) => {
+    handleQuantityChange(size, (quantities[size] || 0) + 1);
   };
 
-  const handleDecrement = (sizeTalla: string) => {
-    handleQuantityChange(sizeTalla, (quantities[sizeTalla] || 0) - 1);
+  const handleDecrement = (size: string) => {
+    handleQuantityChange(size, (quantities[size] || 0) - 1);
   };
   
   // Aplicar la curva seleccionada automáticamente
   const applyCurve = (curveType: CurveType) => {
-    if (!product || !product.sizes) return;
+    if (!product || !product.variants) return;
     
     const newQuantities: Record<string, number> = {};
     
-    product.sizes.forEach(size => {
+    product.variants.forEach(variant => {
       if (curveType === 'simple') {
-        newQuantities[size.talla] = size.curva_simple || 0;
+        newQuantities[variant.size] = variant.simple_curve || 0;
       } else if (curveType === 'reinforced') {
-        newQuantities[size.talla] = size.curva_reforzada || 0;
+        newQuantities[variant.size] = variant.reinforced_curve || 0;
       } else {
         // Para curva personalizada, mantenemos los valores actuales
-        newQuantities[size.talla] = quantities[size.talla] || 0;
+        newQuantities[variant.size] = quantities[variant.size] || 0;
       }
     });
     
@@ -196,7 +210,7 @@ const ProductDetailPage = () => {
       return;
     }
     
-    // Create cart item
+    // Create cart item with variants information
     const cartItem = {
       productId: product?.id,
       productName: product?.name,
@@ -206,7 +220,12 @@ const ProductDetailPage = () => {
       curveType: selectedCurveType,
       quantities: { ...quantities },
       totalQuantity,
-      totalPrice: (product?.price || 0) * totalQuantity
+      totalPrice: (product?.price || 0) * totalQuantity,
+      variants: product?.variants?.map(variant => ({
+        id: variant.id,
+        size: variant.size,
+        quantity: quantities[variant.size] || 0
+      })).filter(v => (quantities[v.size] || 0) > 0) || []
     };
     
     // Get existing cart from localStorage or initialize empty array
@@ -223,8 +242,14 @@ const ProductDetailPage = () => {
       description: "Producto añadido al carrito correctamente.",
     });
     
-    // Optionally navigate to cart or stay on product page
-    // navigate('/cart');
+    // Usar la nueva ruta con marca en la URL para el carrito
+    if (marcaSlug) {
+      navigate(`/${marcaSlug}/carrito`);
+    } else if (selectedBrand) {
+      navigate(`/${selectedBrand.name.toLowerCase()}/carrito`);
+    } else {
+      navigate('/cart');
+    }
   };
 
   const handleImageChange = (index: number) => {
@@ -254,7 +279,16 @@ const ProductDetailPage = () => {
     <div className="container mx-auto py-6 px-4">
       <Button 
         variant="ghost" 
-        onClick={() => navigate(-1)}
+        onClick={() => {
+          // Regresar al catálogo con la marca en la URL
+          if (marcaSlug) {
+            navigate(`/${marcaSlug}/catalogo`);
+          } else if (selectedBrand) {
+            navigate(`/${selectedBrand.name.toLowerCase()}/catalogo`);
+          } else {
+            navigate(-1);
+          }
+        }}
         className="mb-6"
       >
         <ChevronLeft className="mr-2 h-4 w-4" /> Volver
@@ -354,64 +388,78 @@ const ProductDetailPage = () => {
             )}
           </div>
           
-          {/* Size Selection */}
+          {/* Size Selection with Table */}
           <div className="mb-6">
-            <h2 className="text-lg font-semibold mb-2">Tallas Disponibles</h2>
+            <h2 className="text-lg font-semibold mb-2">Stock</h2>
+            <div className="text-sm text-muted-foreground mb-4">
+              Stock: <span className="font-medium">{product.variants?.reduce((total, variant) => total + (variant.stock_quantity || 0), 0) || 0}</span> unidades en total
+            </div>
             
-            {product.sizes && product.sizes.length > 0 ? (
-              <div className="grid grid-cols-2 gap-4">
-                {product.sizes.map((size) => (
-                  <Card key={size.talla} className={size.stock_quantity === 0 ? 'opacity-50' : ''}>
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <Label className="font-medium">{size.talla}</Label>
-                        <span className="text-sm text-muted-foreground">
-                          Stock: {size.stock_quantity}
-                        </span>
-                      </div>
-                      
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Curva Simple: {size.curva_simple}</span>
-                          <span>Curva Reforzada: {size.curva_reforzada}</span>
-                        </div>
-                        
-                        <div className="flex items-center">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleDecrement(size.talla)}
-                            disabled={quantities[size.talla] === 0 || size.stock_quantity === 0 || selectedCurveType !== 'custom'}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <Input
-                            type="number"
-                            min="0"
-                            max={size.stock_quantity}
-                            value={quantities[size.talla] || 0}
-                            onChange={(e) => handleQuantityChange(size.talla, parseInt(e.target.value) || 0)}
-                            className="w-16 mx-2 text-center"
-                            disabled={size.stock_quantity === 0 || selectedCurveType !== 'custom'}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => handleIncrement(size.talla)}
-                            disabled={quantities[size.talla] >= size.stock_quantity || size.stock_quantity === 0 || selectedCurveType !== 'custom'}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+            {product.variants && product.variants.length > 0 ? (
+              <Card className="mb-4 overflow-hidden shadow-sm">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead className="w-24 text-center">Talla</TableHead>
+                      <TableHead className="w-24 text-center">Stock</TableHead>
+                      <TableHead className="text-center">Cantidad</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {product.variants.map((variant) => (
+                      <TableRow key={variant.id} className={variant.stock_quantity === 0 ? 'opacity-50 bg-muted/20' : ''}>
+                        <TableCell className="font-medium text-center">{variant.size}</TableCell>
+                        <TableCell className="text-center">
+                          {variant.stock_quantity > 0 ? (
+                            <Badge variant="outline" className={variant.stock_quantity > 10 ? "bg-green-50" : "bg-amber-50"}>
+                              {variant.stock_quantity}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-red-50">Sin stock</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleDecrement(variant.size)}
+                              disabled={quantities[variant.size] === 0 || variant.stock_quantity === 0 || selectedCurveType !== 'custom'}
+                              className="h-8 w-8"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min="0"
+                              max={variant.stock_quantity}
+                              value={quantities[variant.size] || 0}
+                              onChange={(e) => handleQuantityChange(variant.size, parseInt(e.target.value) || 0)}
+                              className="w-14 mx-1 text-center h-8 p-1"
+                              disabled={variant.stock_quantity === 0 || selectedCurveType !== 'custom'}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleIncrement(variant.size)}
+                              disabled={quantities[variant.size] >= variant.stock_quantity || variant.stock_quantity === 0 || selectedCurveType !== 'custom'}
+                              className="h-8 w-8"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
             ) : (
-              <p className="text-muted-foreground">No hay tallas disponibles para este producto.</p>
+              <Card className="p-4 text-center">
+                <p className="text-muted-foreground">No hay tallas disponibles para este producto.</p>
+              </Card>
             )}
           </div>
           

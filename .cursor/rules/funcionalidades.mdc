@@ -1,0 +1,169 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+# 📦 ShowRoom – Funcionalidades Completas
+
+## 🧩 Descripción general
+
+ShowRoom es una plataforma web privada desarrollada para clientes mayoristas, permitiendo la gestión completa de catálogos por marca, carga de pedidos, administración de preventas, gestión de ofertas y control de usuarios con diferentes niveles de permisos.
+
+La app está diseñada para ser:
+- Rápida
+- Escalable
+- Segura
+- Fácil de mantener
+
+Stack tecnológico:
+- React + Vite + TypeScript
+- Tailwind CSS + Shadcn UI
+- Supabase (Base de datos, Auth, Policies)
+- Utilidades para carga por CSV, exportación Excel, generación de PDFs
+
+---
+
+## 👥 Tipos de usuarios
+
+### Cliente
+- Inicia sesión con email y contraseña
+- Ve solo las marcas habilitadas
+- Accede al showroom de la marca:
+  - Rubros (prendas, calzados, accesorios)
+  - Listado de productos con filtros: género, silueta, precio
+  - Detalles de cada producto: imágenes, tallas, curvas
+- Agrega productos al carrito por talla o por curva
+- Edita cantidades dentro del carrito
+- Finaliza el pedido y descarga el PDF de resumen para enviar al vendedor
+- Consulta el historial de pedidos:
+  - Fecha
+  - Total de artículos
+  - Total en monto
+  - Descarga del PDF
+- Accede a la sección de preventa si está habilitado:
+  - Visualiza productos de temporadas activas
+  - Carga pedidos de preventa
+  - Descarga PDF del pedido de preventa
+
+---
+
+### Admin
+- Todo lo que hace un Cliente ✅
+- Gestiona productos de sus marcas asignadas:
+  - Carga de productos por CSV
+  - Activación/desactivación de productos
+  - Exportación de stock actual a Excel
+- Gestiona preventas:
+  - Crea nuevas temporadas (ej: SS26, FW26)
+  - Carga productos por CSV dentro de la temporada
+  - Activa o desactiva la ventana de compra de la preventa
+- Gestiona ofertas:
+  - Crea o elimina ofertas por producto o rubro
+  - Define descuentos por cantidad mínima (ej.: 10 curvas = 5% off)
+  - Visualiza ofertas activas en showroom y aplica descuentos en carrito
+
+---
+
+### Superadmin
+- Todo lo que hace un Admin y un Cliente ✅
+- Control total sobre:
+  - Usuarios:
+    - Crear, editar, borrar superadmins, admins y clientes
+    - Asignar marcas visibles y permisos de preventa a usuarios
+  - Marcas:
+    - Crear y editar marcas
+    - Definir nombre, logo, y rubros disponibles
+  - Preventas:
+    - Control absoluto de temporadas y ventanas de compra
+  - Ofertas:
+    - Control de todas las ofertas creadas por cualquier admin
+
+---
+
+## 🛍️ Catálogo de productos
+
+- Productos cargados por marca
+- Rubros configurables: prendas, calzados, accesorios
+- Cada producto incluye:
+  - Código, descripción
+  - Género, categoría, silueta
+  - Precio y estado comercial
+  - Tallas disponibles y cantidades
+  - Curvas predefinidas por producto
+  - Hasta 5 imágenes por producto
+- Visualización optimizada:
+  - Filtros por género, silueta, precio
+  - Selector de cantidad por talla o curva
+  - Añadir al carrito
+
+---
+
+## 🛒 Carrito y pedidos
+
+- Agregar productos al carrito desde catálogo o detalle del producto
+- Edición flexible de cantidades por talla dentro del carrito
+- Visualización de resumen de pedido antes de finalizar
+- Generación de PDF con detalle de pedido para enviar al vendedor
+- Historial de pedidos por usuario
+- Posibilidad de volver a descargar los PDFs de pedidos pasados
+
+---
+
+## 📦 Preventa
+
+- Catálogo separado con productos de temporadas futuras (ej.: SS26, FW26)
+- Los admins crean y cargan productos para cada temporada
+- Ventana de compra controlada por admins y superadmin (activar/desactivar)
+- Solo clientes habilitados pueden visualizar preventa
+- Pedido de preventa se descarga en PDF igual que el pedido regular
+
+---
+
+## 🏷️ Ofertas
+
+- Sección flexible para admins y superadmins
+- Tipos de oferta:
+  - Por producto específico
+  - Por rubro completo
+  - Por volumen mínimo de compra (curvas o cantidad de unidades)
+- Las ofertas se visualizan en el showroom y se aplican automáticamente en el carrito si se cumplen las condiciones
+- Descuentos reflejados en el resumen de pedido y PDF final
+
+---
+
+## 🔒 Seguridad
+
+- Supabase con Row-Level Security (RLS) para controlar el acceso a datos sensibles
+- Autenticación robusta por email y contraseña
+- Accesos diferenciados por tipo de usuario
+- Validación de datos cargados y exportados
+- Evita exposiciones de API keys y variables sensibles
+
+---
+
+## ⚡ Performance y escalabilidad
+
+- Preparado para manejar catálogos con miles de productos y usuarios
+- Carga de productos optimizada por CSV
+- Exportación eficiente de stock a Excel
+- Pensado para implementar caching avanzado y lazy loading
+- Paginations y búsqueda eficiente en listados grandes
+- Preparado para conexión de servicios externos (como APIs de logística o facturación en el futuro)
+
+---
+
+## 🚀 Roadmap de mejoras futuras
+
+- ✅ Implementar caching con SWR o similar para evitar consultas innecesarias
+- ✅ Mejorar SEO con meta tags dinámicos y buenas prácticas de accesibilidad
+- ✅ Optimización avanzada para performance en grandes volúmenes de datos
+- ✅ Preparación para conversión a PWA para experiencia mobile optimizada
+- ✅ Configuración de tests automáticos (unitarios y end-to-end)
+
+---
+
+> _Este documento describe el estado actual y proyectado de la plataforma ShowRoom. Mantener actualizado para referencia del equipo y escalabilidad del proyecto._
+

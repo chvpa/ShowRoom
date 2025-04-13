@@ -1,5 +1,4 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Upload } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -29,12 +28,41 @@ interface ProductCSVRow {
   IMAGEN_5: string;
 }
 
-const CSVUploader = () => {
+interface CSVUploaderProps {
+  bucketName?: string;
+  onSuccess?: () => void;
+  brandId?: string;
+}
+
+const CSVUploader = ({ bucketName = 'products', onSuccess, brandId }: CSVUploaderProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [brandName, setBrandName] = useState<string | null>(null);
+
+  // Obtener el nombre de la marca a partir del ID
+  useEffect(() => {
+    if (brandId) {
+      const fetchBrandName = async () => {
+        const { data, error } = await supabase
+          .from('brands')
+          .select('name')
+          .eq('id', brandId)
+          .single();
+          
+        if (data && !error) {
+          console.log('Nombre de marca encontrado:', data.name);
+          setBrandName(data.name);
+        } else {
+          console.error('Error al obtener el nombre de la marca:', error);
+        }
+      };
+      
+      fetchBrandName();
+    }
+  }, [brandId]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -42,6 +70,20 @@ const CSVUploader = () => {
 
     setIsUploading(true);
     setUploadProgress({ current: 0, total: 0 });
+
+    // Log para verificar que el brandId se está pasando correctamente
+    console.log('Cargando productos para la marca ID:', brandId);
+    console.log('Nombre de la marca:', brandName);
+    
+    if (!brandId || !brandName) {
+      toast({
+        title: 'Error al subir productos',
+        description: 'No se ha seleccionado una marca válida.',
+        variant: 'destructive',
+      });
+      setIsUploading(false);
+      return;
+    }
 
     try {
       Papa.parse<ProductCSVRow>(file, {
@@ -98,56 +140,6 @@ const CSVUploader = () => {
               if (processedSkus.has(sku)) continue;
               processedSkus.add(sku);
               
-              // 1. Buscar o crear la marca
-              let brandId;
-              const { data: existingBrand } = await supabase
-                .from('brands')
-                .select('id')
-                .eq('name', productData.marca)
-                .maybeSingle();
-                
-              if (existingBrand) {
-                brandId = existingBrand.id;
-              } else {
-                const { data: newBrand, error: brandError } = await supabase
-                  .from('brands')
-                  .insert({ name: productData.marca })
-                  .select('id')
-                  .single();
-                  
-                if (brandError) {
-                  console.error('Error creating brand:', brandError);
-                  throw brandError;
-                }
-                
-                brandId = newBrand.id;
-              }
-              
-              // 2. Buscar o crear la categoría
-              let categoryId;
-              const { data: existingCategory } = await supabase
-                .from('categories')
-                .select('id')
-                .eq('name', productData.categoria)
-                .maybeSingle();
-                
-              if (existingCategory) {
-                categoryId = existingCategory.id;
-              } else {
-                const { data: newCategory, error: categoryError } = await supabase
-                  .from('categories')
-                  .insert({ name: productData.categoria })
-                  .select('id')
-                  .single();
-                  
-                if (categoryError) {
-                  console.error('Error creating category:', categoryError);
-                  throw categoryError;
-                }
-                
-                categoryId = newCategory.id;
-              }
-              
               // 3. Preparar las imágenes (filtrar URLs vacías)
               const images = [
                 productData.IMAGEN_1, 
@@ -169,6 +161,7 @@ const CSVUploader = () => {
               if (existingProduct) {
                 // Actualizar producto existente
                 productId = existingProduct.id;
+                console.log(`Actualizando producto con SKU ${sku} para marca ID ${brandId} (${brandName})`);
                 const { error: updateError } = await supabase
                   .from('products')
                   .update({
@@ -176,8 +169,8 @@ const CSVUploader = () => {
                     description: `${productData.rubro} - ${productData.estado}`,
                     silhouette: productData.silueta,
                     gender: productData.genero,
-                    category_id: categoryId,
-                    brand_id: brandId,
+                    category: productData.categoria,
+                    brand: brandName,
                     product_type: productData.rubro,
                     status: productData.estado,
                     price: Number(productData.Precio) || 0,
@@ -190,8 +183,12 @@ const CSVUploader = () => {
                   console.error('Error updating product:', updateError);
                   throw updateError;
                 }
+                
+                // Registro para verificar la actualización
+                console.log(`Producto actualizado: ${productData.descripcion}, Brand: ${brandName}`);
               } else {
                 // Crear nuevo producto
+                console.log(`Creando nuevo producto con SKU ${sku} para marca ID ${brandId} (${brandName})`);
                 const { data: newProduct, error: productError } = await supabase
                   .from('products')
                   .insert({
@@ -200,8 +197,8 @@ const CSVUploader = () => {
                     description: `${productData.rubro} - ${productData.estado}`,
                     silhouette: productData.silueta,
                     gender: productData.genero,
-                    category_id: categoryId,
-                    brand_id: brandId,
+                    category: productData.categoria,
+                    brand: brandName,
                     product_type: productData.rubro,
                     status: productData.estado,
                     price: Number(productData.Precio) || 0,
@@ -217,6 +214,8 @@ const CSVUploader = () => {
                 }
                 
                 productId = newProduct.id;
+                // Registro para verificar la creación
+                console.log(`Producto creado: ${productData.descripcion}, Brand: ${brandName}`);
               }
               
               // 5. Crear o actualizar las variantes
@@ -282,12 +281,23 @@ const CSVUploader = () => {
           }
           
           // Actualizar caché de consultas para reflejar los cambios
-          queryClient.invalidateQueries({ queryKey: ['products'] });
+          if (brandId) {
+            console.log(`Invalidando caché para marca ID: ${brandId}`);
+            queryClient.invalidateQueries({ queryKey: ['products', brandId] });
+          } else {
+            console.log('Invalidando todas las consultas de productos');
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+          }
           
           toast({
             title: 'Productos subidos correctamente',
             description: `Se han procesado ${processedCount} variantes de productos.`,
           });
+          
+          // Llamar al callback de éxito si se proporciona
+          if (onSuccess) {
+            onSuccess();
+          }
           
           // Reset the file input and uploading state
           setIsUploading(false);

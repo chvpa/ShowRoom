@@ -1,0 +1,116 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Contenido de tu regla
+
+# Regla de Cursor – ShowRoom: Manejo de datos de alto rendimiento y escalabilidad
+
+## 📦 Reglas para la obtención de datos (Data fetching)
+
+- ✅ Utilizar siempre **estrategias eficientes de obtención de datos**:
+  - Implementar **caché del lado del cliente** con SWR o React Query (si está disponible).
+  - Obtener **únicamente** los datos necesarios, evitar sobrecarga de peticiones.
+  - Usar **consultas selectivas**: evitar SELECT *.
+  - Obtener datos de forma perezosa (lazy loading), bajo demanda.
+  - Evitar múltiples solicitudes innecesarias a Supabase.
+
+- ✅ Utilizar **consultas paginadas** para conjuntos de datos grandes:
+  - Implementar limit y offset para las listas.
+  - Mostrar indicadores de carga al obtener las siguientes páginas.
+  - Soportar scroll infinito o paginación en la interfaz.
+
+- ✅ Preferir la **paginación y filtrado en el servidor** antes que en el cliente:
+  - Aplicar filtros y ordenamientos en la consulta, no en el frontend.
+  - Validar y sanitizar siempre los parámetros de consulta.
+
+- ✅ Usar **consultas por lotes** al obtener múltiples elementos (batching).
+
+- ✅ Aplicar debounce en los campos de búsqueda o filtros para evitar múltiples peticiones rápidas.
+
+---
+
+## 🚀 Caché y rendimiento de datos
+
+- ✅ Usar la **caché de forma agresiva**:
+  - Implementar SWR (stale-while-revalidate) o una estrategia de caché similar.
+  - Revalidar datos de manera inteligente (invalidación manual cuando sea necesario).
+  - Cachear correctamente los assets estáticos e imágenes.
+  - Priorizar el almacenamiento local o IndexedDB para caché persistente si es beneficioso.
+
+- ✅ Aplicar **memoización** para cálculos y componentes costosos.
+
+- ✅ Usar **React.memo**, `useMemo` y `useCallback` para componentes y utilidades pesadas.
+
+- ✅ Prefetch de datos **antes de que se necesiten**, especialmente para flujos conocidos (selección de marca → rubro → producto).
+
+---
+
+## ⚙️ Mejores prácticas para manejo de base de datos (Supabase)
+
+- ✅ Evitar SELECT * en producción. Siempre especificar los campos requeridos.
+- ✅ Usar **Row Level Security (RLS) de Supabase** para la seguridad de los datos.
+- ✅ Aplicar **filtrado, paginación y ordenamiento del lado del servidor**.
+- ✅ Reducir lecturas mediante la caché de metadatos de uso frecuente (ej.: marcas, rubros).
+- ✅ Evitar consultas anidadas innecesarias.
+- ✅ Preparar para **regeneración incremental** si se considera SSR en el futuro.
+- ✅ Diseñar el esquema para **rendimiento óptimo de consultas**:
+  - Indexación adecuada.
+  - Evitar problemas de N+1.
+  - Utilizar joins eficientes.
+
+---
+
+## 🧩 Experiencia de usuario con grandes volúmenes de datos
+
+- ✅ Utilizar **skeleton loaders** y placeholders para mejorar la percepción de rendimiento.
+- ✅ Implementar scroll virtual si las listas son muy largas (ej.: más de 500 elementos).
+- ✅ Mostrar datos en fragmentos ("cargar más" o scroll infinito).
+- ✅ Cargar de forma perezosa (lazy load) imágenes y recursos pesados.
+- ✅ Comprimir imágenes y usar formatos modernos (WebP, AVIF).
+
+---
+
+## 🧱 Estructura de código para el rendimiento
+
+- ✅ Dividir el código por rutas y características (code-splitting).
+- ✅ Usar imports dinámicos y React.lazy donde sea aplicable.
+- ✅ Evitar la contaminación del estado global.
+- ✅ Minimizar re-renderizados mediante una gestión adecuada del estado.
+- ✅ Mantener árboles de componentes poco profundos siempre que sea posible.
+
+---
+
+## 🛡️ Consideraciones de seguridad para el flujo de datos
+
+- ✅ Sanitizar y validar todas las entradas, tanto del lado del cliente como del servidor.
+- ✅ No exponer consultas o variables sensibles en el código del frontend.
+- ✅ Nunca almacenar claves de API o secretos en JS del lado del cliente.
+- ✅ Usar variables de entorno de manera segura.
+- ✅ Aplicar permisos estrictos en las policies de Supabase.
+
+---
+
+## 🧠 Recordatorio para Cursor AI
+
+> - Priorizar siempre las consultas eficientes sobre la conveniencia.
+> - Cachear las respuestas siempre que sea apropiado.
+> - Evitar la obtención innecesaria de datos y combinar solicitudes de forma lógica.
+> - Mantener el flujo de datos limpio, predecible y seguro.
+> - Enfocarse en la performance percibida (UX rápida como prioridad).
+> - Pensar en la escalabilidad: la aplicación debe manejar miles de productos y usuarios sin problemas.
+> - Siempre haz todo en ESPAÑOL
+
+---
+
+## 🌟 Preparación para el futuro (Altamente recomendado)
+
+- Preparar soporte **offline** con service workers.
+- Considerar optimización **PWA** para una experiencia móvil fluida.
+- Usar hints de **preload** y **preconnect** en `<head>` para recursos críticos.
+- Configurar **extracción de CSS crítico** para una pintura inicial más rápida.
+- Utilizar **lazy hydration** para componentes no críticos.
+
+---
+

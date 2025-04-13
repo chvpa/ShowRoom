@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import CSVUploader from '@/components/CSVUploader';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Pencil, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,16 +37,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-
-interface Product {
-  id: string;
-  sku: string;
-  name: string;
-  price: number;
-  images: string[];
-  total_stock: number;
-  enabled?: boolean; // Hacemos que sea opcional para manejar casos donde no exista en la BD
-}
+import { AlertCircle, Package } from "lucide-react";
+import { useBrand } from '@/contexts/brand-context';
+import { Product } from '@/types';
+import { useSupabaseQuery } from '@/hooks/use-supabase-query';
 
 interface EditProductFormProps {
   product: Product;
@@ -83,7 +78,7 @@ const EditProductForm = ({ product, onSave, onCancel }: EditProductFormProps) =>
     try {
       await onSave(formData);
     } catch (error) {
-      console.error('Error al guardar:', error);
+      console.error('Error saving:', error);
     } finally {
       setIsLoading(false);
     }
@@ -150,151 +145,126 @@ const ProductsPage = () => {
   const queryClient = useQueryClient();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const navigate = useNavigate();
+  const { selectedBrand } = useBrand();
 
-  // Función para obtener productos con stock total
-  const fetchProducts = async (): Promise<Product[]> => {
-    // Primero obtenemos todos los productos
-    const { data: products, error: productsError } = await supabase
-      .from('products')
-      .select('id, sku, name, price, images, enabled');
-    
-    if (productsError) {
-      throw new Error(`Error al cargar productos: ${productsError.message}`);
-    }
-    
-    if (!products || products.length === 0) {
-      return [];
-    }
-    
-    // Para cada producto, obtenemos la suma del stock de todas sus variantes
-    const productsWithStock = await Promise.all(products.map(async (product: any) => {
-      // Validamos que el producto tenga un ID válido
-      if (!product || !product.id) {
-        console.error('Producto inválido:', product);
-        return null;
+  // Redirect to brand selection if no brand is selected
+  if (!selectedBrand) {
+    navigate('/brand-selection');
+    return null;
+  }
+
+  // Use React Query via our custom hook for efficient data fetching with caching
+  const { 
+    data: productsResponse, 
+    isLoading, 
+    isError,
+    refetch 
+  } = useSupabaseQuery<Product>(
+    ['products', selectedBrand.id],
+    'products',
+    async (client) => {
+      console.log('Consultando productos para marca ID:', selectedBrand.id);
+      console.log('Nombre de la marca:', selectedBrand.name);
+      
+      // Usar el cliente de supabase correctamente, pero filtrando por el campo brand (nombre) en lugar de brand_id
+      const { data, error } = await client
+        .from('products')
+        .select('*')
+        .eq('brand', selectedBrand.name);
+        
+      if (error) throw error;
+      
+      console.log('Productos encontrados:', data?.length || 0);
+      
+      // Process the data to include stock information from variants
+      if (data && data.length > 0) {
+        const productsWithStock = await Promise.all(data.map(async (product) => {
+          try {
+            // Get stock information from variants
+            const { data: variants, error: variantsError } = await supabase
+              .from('product_variants')
+              .select('stock_quantity')
+              .eq('product_id', product.id);
+            
+            if (variantsError) throw variantsError;
+            
+            // Calculate total stock
+            const totalStock = variants?.reduce(
+              (sum, variant) => sum + (variant.stock_quantity || 0), 
+              0
+            ) || 0;
+            
+            return {
+              ...product,
+              total_stock: totalStock
+            };
+          } catch (error) {
+            console.error(`Error fetching stock for product ${product.id}:`, error);
+            return {
+              ...product,
+              total_stock: 0
+            };
+          }
+        }));
+        
+        return { 
+          data: productsWithStock, 
+          error: null, 
+          count: productsWithStock.length 
+        };
       }
       
-      // Create a validated product object with known properties
-      // Using type assertion to avoid TypeScript errors
-      const validProduct = {
-        id: product.id as string,
-        sku: (product.sku as string) || '',
-        name: (product.name as string) || '',
-        price: Number(product.price) || 0,
-        images: Array.isArray(product.images) ? product.images : [] as string[],
-        enabled: product.enabled !== undefined ? Boolean(product.enabled) : true
-      };
-
-      const { data: variants, error: variantsError } = await supabase
-        .from('product_variants')
-        .select('stock_quantity')
-        .eq('product_id', product.id);
-      
-      if (variantsError) {
-        console.error(`Error al cargar variantes para ${validProduct.sku || 'desconocido'}:`, variantsError);
-        // Create a new object with all required Product properties
-        return {
-          id: validProduct.id,
-          sku: validProduct.sku || '',
-          name: validProduct.name || '',
-          price: validProduct.price || 0,
-          images: [] as string[],
-          total_stock: 0,
-          enabled: true
-        } as Product;
-      }
-      
-      const totalStock = variants?.reduce((sum, variant) => sum + (variant.stock_quantity || 0), 0) || 0;
-      
-      // Use the validated product object
       return { 
-        id: validProduct.id,
-        sku: validProduct.sku || '',
-        name: validProduct.name || '',
-        price: validProduct.price || 0,
-        total_stock: totalStock,
-        images: Array.isArray(validProduct.images) ? validProduct.images : [] as string[], // Aseguramos que images sea un array
-        enabled: validProduct.enabled !== undefined ? validProduct.enabled : true // Manejo más robusto del valor por defecto
-      } as Product;
-    }));
-    
-    // Filtramos posibles valores nulos
-    const validProducts = productsWithStock.filter(product => product !== null) as Product[];
-    
-    return validProducts;
-  };
+        data: data || [], 
+        error: null, 
+        count: data?.length || 0 
+      };
+    },
+    {
+      staleTime: 1000 * 60 * 2, // 2 minutes cache
+      refetchOnWindowFocus: false
+    }
+  );
 
-  // Usar React Query para manejar la carga y el caché de datos
-  const { data: products, isLoading, error } = useQuery({
-    queryKey: ['products'],
-    queryFn: fetchProducts
-  });
+  // Extraer los productos de la respuesta
+  const products = productsResponse?.data || [];
 
-  // Función para actualizar un producto
+  // Function to update a product
   const updateProduct = async (updatedProduct: Partial<Product>) => {
     if (!editingProduct) return;
     
     try {
-      // Verificamos si la columna enabled existe en la base de datos
-      // Si no existe, eliminamos esa propiedad para evitar errores
-      const productToUpdate = { ...updatedProduct };
-      
-      // Intentamos primero actualizar con todos los campos
       const { error } = await supabase
         .from('products')
-        .update(productToUpdate)
+        .update(updatedProduct)
         .eq('id', editingProduct.id);
       
-      if (error) {
-        // Si hay un error, podría ser porque la columna 'enabled' no existe
-        console.warn('Error al actualizar con todos los campos:', error);
-        
-        // Intentamos actualizar sin el campo enabled
-        if ('enabled' in productToUpdate) {
-          const { enabled, ...productWithoutEnabled } = productToUpdate;
-          const { error: error2 } = await supabase
-            .from('products')
-            .update(productWithoutEnabled)
-            .eq('id', editingProduct.id);
-          
-          if (error2) throw error2;
-        } else {
-          throw error;
-        }
-      }
+      if (error) throw error;
+      
+      // Close the dialog and invalidate queries to refresh data
+      setEditingProduct(null);
+      queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
       
       toast({
-        title: "Producto actualizado",
-        description: "El producto ha sido actualizado exitosamente."
+        title: "Éxito",
+        description: "El producto ha sido actualizado",
       });
-      
-      // Invalidar la caché para recargar los datos
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      setEditingProduct(null);
-    } catch (error) {
-      console.error('Error al actualizar producto:', error);
+    } catch (error: any) {
+      console.error('Error updating product:', error);
       toast({
         title: "Error",
-        description: "No se pudo actualizar el producto.",
-        variant: "destructive"
+        description: error.message || "No se pudo actualizar el producto",
+        variant: "destructive",
       });
     }
   };
 
-  // Función para eliminar un producto
+  // Function to delete a product
   const deleteProduct = async () => {
     if (!productToDelete) return;
     
     try {
-      // Primero eliminamos las variantes asociadas al producto
-      const { error: variantsError } = await supabase
-        .from('product_variants')
-        .delete()
-        .eq('product_id', productToDelete.id);
-      
-      if (variantsError) throw variantsError;
-      
-      // Luego eliminamos el producto
       const { error } = await supabase
         .from('products')
         .delete()
@@ -302,202 +272,211 @@ const ProductsPage = () => {
       
       if (error) throw error;
       
-      toast({
-        title: "Producto eliminado",
-        description: "El producto ha sido eliminado exitosamente."
-      });
-      
-      // Invalidar la caché para recargar los datos
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+      // Close the dialog and invalidate queries to refresh data
       setProductToDelete(null);
-    } catch (error) {
-      console.error('Error al eliminar producto:', error);
+      queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
+      
+      toast({
+        title: "Éxito",
+        description: "El producto ha sido eliminado",
+      });
+    } catch (error: any) {
+      console.error('Error deleting product:', error);
       toast({
         title: "Error",
-        description: "No se pudo eliminar el producto.",
-        variant: "destructive"
+        description: error.message || "No se pudo eliminar el producto",
+        variant: "destructive",
       });
     }
   };
 
-  // Función para cambiar el estado de habilitado/deshabilitado de un producto
+  // Function to change product status (enabled/disabled)
   const handleProductStatusChange = async (productId: string, enabled: boolean) => {
     try {
-      // Intentamos actualizar el estado del producto
       const { error } = await supabase
         .from('products')
-        .update({ enabled } as any)
+        .update({ enabled })
         .eq('id', productId);
       
-      if (error) {
-        // Si hay un error, podría ser porque la columna 'enabled' no existe
-        console.warn('Error al actualizar estado del producto:', error);
-        
-        // Verificamos si necesitamos crear la columna 'enabled'
-        if (error.message && (error.message.includes('column') || error.message.includes('does not exist'))) {
-          toast({
-            title: "Columna no encontrada",
-            description: "Es posible que necesites añadir la columna 'enabled' a la tabla de productos en Supabase.",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        throw error;
-      }
+      if (error) throw error;
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
       
       toast({
-        title: enabled ? "Producto habilitado" : "Producto deshabilitado",
-        description: `El producto ha sido ${enabled ? 'habilitado' : 'deshabilitado'} exitosamente.`
+        title: "Éxito",
+        description: `Producto ${enabled ? 'habilitado' : 'deshabilitado'} correctamente`,
       });
-      
-      // Invalidar la caché para recargar los datos
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-    } catch (error) {
-      console.error('Error al actualizar estado del producto:', error);
+    } catch (error: any) {
+      console.error('Error updating product status:', error);
       toast({
         title: "Error",
-        description: "No se pudo actualizar el estado del producto.",
-        variant: "destructive"
+        description: error.message || "No se pudo actualizar el estado del producto",
+        variant: "destructive",
       });
     }
   };
 
   return (
-    <div className="p-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
-        <h1 className="text-3xl font-semibold">Productos</h1>
-        <CSVUploader />
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className='flex flex-col gap-2'>
+          <h1 className="text-2xl lg:text-3xl font-bold">Productos de {selectedBrand.name}</h1>
+          <p className="text-muted-foreground">Administra los productos de tu marca</p>
+        </div>
+        
+        <CSVUploader 
+          bucketName="products" 
+          onSuccess={() => {
+            // Forzar la recarga de datos para asegurar que se muestren los nuevos productos
+            console.log('Productos importados, refrescando datos...');
+            queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
+            refetch();
+            toast({
+              title: "Éxito",
+              description: "Los productos se han importado correctamente",
+            });
+          }}
+          brandId={selectedBrand.id}
+        />
       </div>
       
-      {/* Diálogo para editar producto */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+          <p>Cargando productos...</p>
+        </div>
+      ) : isError ? (
+        <Card>
+          <CardContent className="flex items-center gap-2 p-6">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <p>Hubo un error al cargar los productos. Por favor intenta nuevamente.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Reintentar</Button>
+          </CardContent>
+        </Card>
+      ) : products.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 p-6">
+            <Package className="h-12 w-12 text-muted-foreground" />
+            <div className="text-center">
+              <h3 className="text-lg font-medium">No se encontraron productos</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Importa productos usando el cargador CSV de arriba.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">Imagen</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>Descripción</TableHead>
+                <TableHead className="text-right">Precio</TableHead>
+                <TableHead className="text-right">Stock</TableHead>
+                <TableHead className="text-center">Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {products.map((product) => (
+                <TableRow key={product.id}>
+                  <TableCell>
+                    <div className="h-12 w-12 rounded border overflow-hidden">
+                      {product.images && product.images[0] ? (
+                        <img 
+                          src={product.images[0]} 
+                          alt={product.name} 
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/placeholder.svg';
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-muted flex items-center justify-center">
+                          <span className="text-xs text-muted-foreground">No img</span>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{product.sku}</TableCell>
+                  <TableCell>{product.name}</TableCell>
+                  <TableCell className="text-right">
+                    {new Intl.NumberFormat('es-AR', {
+                      style: 'currency',
+                      currency: 'ARS'
+                    }).format(product.price || 0)}
+                  </TableCell>
+                  <TableCell className="text-right">{product.total_stock || 0}</TableCell>
+                  <TableCell className="text-center">
+                    <Switch
+                      checked={product.enabled}
+                      onCheckedChange={(checked) => handleProductStatusChange(product.id, checked)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Acciones</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setEditingProduct(product)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className='text-destructive' onClick={() => setProductToDelete(product)}>
+                          <Trash2 className="mr-2 h-4 w-4"/>
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+      
+      {/* Edit product dialog */}
       <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar producto</DialogTitle>
+            <DialogTitle>Editar Producto</DialogTitle>
             <DialogDescription>
-              Modifica los detalles del producto y guarda los cambios.
+              Realiza cambios en la información del producto aquí.
             </DialogDescription>
           </DialogHeader>
           {editingProduct && (
-            <EditProductForm
-              product={editingProduct}
-              onSave={updateProduct}
-              onCancel={() => setEditingProduct(null)}
+            <EditProductForm 
+              product={editingProduct} 
+              onSave={updateProduct} 
+              onCancel={() => setEditingProduct(null)} 
             />
           )}
         </DialogContent>
       </Dialog>
       
-      {/* Diálogo de confirmación para eliminar */}
+      {/* Delete product confirmation */}
       <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará permanentemente el producto "{productToDelete?.name}" y no se puede deshacer.
+              Esta acción no se puede deshacer. El producto se eliminará permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteProduct} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
-            </AlertDialogAction>
+            <AlertDialogAction onClick={deleteProduct}>Eliminar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Card className="mt-4">
-        <CardContent className="p-6">
-          {isLoading ? (
-            <p className="text-center">Cargando productos...</p>
-          ) : error ? (
-            <div className="text-center">
-              <p className="text-red-500">Error al cargar productos</p>
-              <p className="text-sm text-muted-foreground">
-                {(error as Error).message}
-              </p>
-            </div>
-          ) : products && products.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[80px]">Imagen</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead className="text-right">Precio</TableHead>
-                    <TableHead className="text-right">Disponible</TableHead>
-                    <TableHead className="text-center">Estado</TableHead>
-                    <TableHead className="w-[100px] text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell>
-                        {product.images && product.images[0] && (
-                          <img 
-                            src={product.images[0]} 
-                            alt={product.name} 
-                            className="h-12 w-12 object-cover rounded-md"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/placeholder.svg';
-                            }} 
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">{product.sku}</TableCell>
-                      <TableCell>{product.name}</TableCell>
-                      <TableCell className="text-right">
-                        {new Intl.NumberFormat('es-AR', {
-                          style: 'currency',
-                          currency: 'ARS'
-                        }).format(product.price || 0)}
-                      </TableCell>
-                      <TableCell className="text-right">{product.total_stock}</TableCell>
-                      <TableCell className="text-center">
-                        <Switch
-                          checked={product.enabled !== undefined ? product.enabled : false}
-                          onCheckedChange={(checked) => handleProductStatusChange(product.id, checked)}
-                          aria-label={`${product.enabled ? 'Deshabilitar' : 'Habilitar'} producto`}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Abrir menú</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setEditingProduct(product)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => setProductToDelete(product)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Eliminar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              No hay productos cargados. Por favor, suba un archivo CSV para comenzar.
-            </p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 };

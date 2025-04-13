@@ -15,18 +15,24 @@ export type Database = {
           id: string
           name: string
           updated_at: string
+          logo?: string
+          product_types?: string[]
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
           updated_at?: string
+          logo?: string
+          product_types?: string[]
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
           updated_at?: string
+          logo?: string
+          product_types?: string[]
         }
         Relationships: []
       }
@@ -94,8 +100,8 @@ export type Database = {
       }
       products: {
         Row: {
-          brand_id: string | null
-          category_id: string | null
+          brand: string | null
+          category: string | null
           created_at: string
           description: string | null
           gender: string | null
@@ -108,10 +114,12 @@ export type Database = {
           sku: string
           status: string | null
           updated_at: string
+          enabled: boolean | null
+          rubro: string | null
         }
         Insert: {
-          brand_id?: string | null
-          category_id?: string | null
+          brand?: string | null
+          category?: string | null
           created_at?: string
           description?: string | null
           gender?: string | null
@@ -124,10 +132,12 @@ export type Database = {
           sku: string
           status?: string | null
           updated_at?: string
+          enabled?: boolean | null
+          rubro?: string | null
         }
         Update: {
-          brand_id?: string | null
-          category_id?: string | null
+          brand?: string | null
+          category?: string | null
           created_at?: string
           description?: string | null
           gender?: string | null
@@ -140,22 +150,75 @@ export type Database = {
           sku?: string
           status?: string | null
           updated_at?: string
+          enabled?: boolean | null
+          rubro?: string | null
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          id: string
+          email: string
+          name: string
+          role: 'superadmin' | 'admin' | 'cliente'
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          name: string
+          role: 'superadmin' | 'admin' | 'cliente'
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          name?: string
+          role?: 'superadmin' | 'admin' | 'cliente'
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_brands: {
+        Row: {
+          id: string
+          user_id: string
+          brand_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          brand_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          brand_id?: string
+          created_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "products_brand_id_fkey"
+            foreignKeyName: "user_brands_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_brands_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "products_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
+          }
         ]
       }
     }
@@ -163,7 +226,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_superadmin_direct: {
+        Args: {
+          user_id: string
+          user_email: string
+          user_name: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
@@ -257,16 +327,19 @@ export type Enums<
     : never
 
 export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
+  PublicTypeNameOrOptions extends
     | keyof PublicSchema["CompositeTypes"]
     | { schema: keyof Database },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
-  }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  TypeName extends PublicTypeNameOrOptions extends { schema: keyof Database }
+    ? keyof Database[PublicTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+> = PublicTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicTypeNameOrOptions["schema"]]["CompositeTypes"][TypeName] extends
+      infer R
+    ? R
+    : never
+  : PublicTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
+    ? PublicSchema["CompositeTypes"][PublicTypeNameOrOptions] extends infer R
+      ? R
+      : never
     : never

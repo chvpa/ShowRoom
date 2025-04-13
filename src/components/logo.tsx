@@ -7,7 +7,7 @@ const Logo = () => {
       <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
         <span className="text-primary-foreground font-semibold text-xl">S</span>
       </div>
-      <span className="font-semibold text-lg">Showroom</span>
+      <span className="font-semibold text-lg">ShowRoom</span>
     </div>
   );
 };

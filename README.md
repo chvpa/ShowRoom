@@ -1,73 +1,92 @@
-# Welcome to your Lovable project
+# ShowRoom - Catálogo Mayorista
 
-## Project info
+ShowRoom es una plataforma web privada desarrollada para clientes mayoristas, permitiendo la gestión completa de catálogos por marca, carga de pedidos, administración de preventas, gestión de ofertas y control de usuarios con diferentes niveles de permisos.
 
-**URL**: https://lovable.dev/projects/fa74b6a5-008f-4154-b23e-16e0283ffb22
+## Tecnologías
 
-## How can I edit this code?
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **Backend:** Supabase (PostgreSQL, Auth, Storage, RLS)
+- **Estado Global:** React Context API, React Query
+- **Herramientas:** ESLint, Prettier
 
-There are several ways of editing your application.
+## Características Principales
 
-**Use Lovable**
+- 🛍️ **Catálogo de productos** por marca, rubro y categoría
+- 🔐 **Sistema de usuarios** con roles (superadmin, admin, cliente)
+- 🛒 **Carrito de compras** con gestión de pedidos
+- 📦 **Preventas** para productos de temporadas futuras
+- 🏷️ **Ofertas** configurable por producto o rubro
+- 📊 **Dashboard** para administradores
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/fa74b6a5-008f-4154-b23e-16e0283ffb22) and start prompting.
+## Estructura del Proyecto
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+src/
+├── components/       # Componentes reutilizables
+│   ├── ui/           # Componentes de UI de shadcn
+│   └── layout.tsx    # Layout principal
+├── contexts/         # Contextos de React (auth, cart)
+├── hooks/            # Custom hooks
+│   ├── use-debounce.ts       # Debounce para inputs
+│   ├── use-supabase-query.ts # Query hooks con caché
+│   └── use-toast.ts          # Notificaciones
+├── integrations/     # Integraciones externas
+│   └── supabase/     # Cliente y tipos de Supabase
+├── lib/              # Utilidades y funciones
+├── pages/            # Páginas de la aplicación
+└── types/            # Tipos TypeScript centralizados
 ```
 
-**Edit a file directly in GitHub**
+## Optimizaciones Implementadas
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- ⚡ **Carga diferida (lazy loading)** de componentes y rutas
+- 🔄 **Cacheo eficiente** con React Query
+- 📝 **Debounce de inputs** para prevenir llamadas excesivas a la API
+- 🖼️ **Carga optimizada de imágenes**
+- 📱 **Diseño responsive** para todos los dispositivos
 
-**Use GitHub Codespaces**
+## Roles de Usuario
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Superadmin
+- Control total sobre usuarios, marcas, preventas y ofertas
+- Acceso a todas las funcionalidades
 
-## What technologies are used for this project?
+### Admin
+- Gestión de productos y marcas asignadas
+- Configuración de preventas y ofertas
+- Visualización de pedidos de clientes
 
-This project is built with:
+### Cliente
+- Visualización de marcas habilitadas
+- Navegación por catálogo y filtrado
+- Creación de pedidos y descarga de PDFs
+- Acceso a preventas si está habilitado
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Desarrollo Local
 
-## How can I deploy this project?
+```bash
+# Instalar dependencias
+npm install
 
-Simply open [Lovable](https://lovable.dev/projects/fa74b6a5-008f-4154-b23e-16e0283ffb22) and click on Share -> Publish.
+# Iniciar servidor de desarrollo
+npm run dev
 
-## Can I connect a custom domain to my Lovable project?
+# Construir para producción
+npm run build
 
-Yes it is!
+# Vista previa de producción
+npm run preview
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Variables de Entorno
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Crear un archivo `.env` con las siguientes variables:
+
+```
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_KEY=your-supabase-anon-key
+```
+
+## Créditos
+
+Este proyecto fue desarrollado implementando mejores prácticas y optimizaciones para un rendimiento máximo en grandes volúmenes de datos.
