@@ -1,0 +1,30 @@
+{
+  "name": "Showroom - Catálogo Mayorista",
+  "short_name": "Showroom",
+  "description": "Plataforma web privada para clientes mayoristas, con gestión de catálogos, pedidos, preventas y ofertas",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "orientation": "portrait",
+  "categories": ["business", "shopping"],
+  "lang": "es",
+  "dir": "ltr"
+} 

@@ -41,6 +41,7 @@ import { AlertCircle, Package } from "lucide-react";
 import { useBrand } from '@/contexts/brand-context';
 import { Product } from '@/types';
 import { useSupabaseQuery } from '@/hooks/use-supabase-query';
+import { Helmet } from "react-helmet-async";
 
 interface EditProductFormProps {
   product: Product;
@@ -318,166 +319,171 @@ const ProductsPage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className='flex flex-col gap-2'>
-          <h1 className="text-2xl lg:text-3xl font-bold">Productos de {selectedBrand.name}</h1>
-          <p className="text-muted-foreground">Administra los productos de tu marca</p>
+    <>
+      <Helmet>
+        <title>Catálogo de Productos - Showroom</title>
+      </Helmet>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className='flex flex-col gap-2'>
+            <h1 className="text-2xl lg:text-3xl font-bold">Productos de {selectedBrand.name}</h1>
+            <p className="text-muted-foreground">Administra los productos de tu marca</p>
+          </div>
+          
+          <CSVUploader 
+            bucketName="products" 
+            onSuccess={() => {
+              // Forzar la recarga de datos para asegurar que se muestren los nuevos productos
+              console.log('Productos importados, refrescando datos...');
+              queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
+              refetch();
+              toast({
+                title: "Éxito",
+                description: "Los productos se han importado correctamente",
+              });
+            }}
+            brandId={selectedBrand.id}
+          />
         </div>
         
-        <CSVUploader 
-          bucketName="products" 
-          onSuccess={() => {
-            // Forzar la recarga de datos para asegurar que se muestren los nuevos productos
-            console.log('Productos importados, refrescando datos...');
-            queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
-            refetch();
-            toast({
-              title: "Éxito",
-              description: "Los productos se han importado correctamente",
-            });
-          }}
-          brandId={selectedBrand.id}
-        />
-      </div>
-      
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-          <p>Cargando productos...</p>
-        </div>
-      ) : isError ? (
-        <Card>
-          <CardContent className="flex items-center gap-2 p-6">
-            <AlertCircle className="h-5 w-5 text-destructive" />
-            <p>Hubo un error al cargar los productos. Por favor intenta nuevamente.</p>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>Reintentar</Button>
-          </CardContent>
-        </Card>
-      ) : products.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 p-6">
-            <Package className="h-12 w-12 text-muted-foreground" />
-            <div className="text-center">
-              <h3 className="text-lg font-medium">No se encontraron productos</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Importa productos usando el cargador CSV de arriba.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">Imagen</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead className="text-right">Precio</TableHead>
-                <TableHead className="text-right">Stock</TableHead>
-                <TableHead className="text-center">Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell>
-                    <div className="h-12 w-12 rounded border overflow-hidden">
-                      {product.images && product.images[0] ? (
-                        <img 
-                          src={product.images[0]} 
-                          alt={product.name} 
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/placeholder.svg';
-                          }}
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-muted flex items-center justify-center">
-                          <span className="text-xs text-muted-foreground">No img</span>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{product.sku}</TableCell>
-                  <TableCell>{product.name}</TableCell>
-                  <TableCell className="text-right">
-                    {new Intl.NumberFormat('es-AR', {
-                      style: 'currency',
-                      currency: 'ARS'
-                    }).format(product.price || 0)}
-                  </TableCell>
-                  <TableCell className="text-right">{product.total_stock || 0}</TableCell>
-                  <TableCell className="text-center">
-                    <Switch
-                      checked={product.enabled}
-                      onCheckedChange={(checked) => handleProductStatusChange(product.id, checked)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Acciones</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setEditingProduct(product)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className='text-destructive' onClick={() => setProductToDelete(product)}>
-                          <Trash2 className="mr-2 h-4 w-4"/>
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <p>Cargando productos...</p>
+          </div>
+        ) : isError ? (
+          <Card>
+            <CardContent className="flex items-center gap-2 p-6">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p>Hubo un error al cargar los productos. Por favor intenta nuevamente.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>Reintentar</Button>
+            </CardContent>
+          </Card>
+        ) : products.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-4 p-6">
+              <Package className="h-12 w-12 text-muted-foreground" />
+              <div className="text-center">
+                <h3 className="text-lg font-medium">No se encontraron productos</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Importa productos usando el cargador CSV de arriba.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">Imagen</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead className="text-right">Precio</TableHead>
+                  <TableHead className="text-right">Stock</TableHead>
+                  <TableHead className="text-center">Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
-      
-      {/* Edit product dialog */}
-      <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Producto</DialogTitle>
-            <DialogDescription>
-              Realiza cambios en la información del producto aquí.
-            </DialogDescription>
-          </DialogHeader>
-          {editingProduct && (
-            <EditProductForm 
-              product={editingProduct} 
-              onSave={updateProduct} 
-              onCancel={() => setEditingProduct(null)} 
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-      
-      {/* Delete product confirmation */}
-      <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. El producto se eliminará permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteProduct}>Eliminar</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+              </TableHeader>
+              <TableBody>
+                {products.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell>
+                      <div className="h-12 w-12 rounded border overflow-hidden">
+                        {product.images && product.images[0] ? (
+                          <img 
+                            src={product.images[0]} 
+                            alt={product.name} 
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/placeholder.svg';
+                            }}
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-muted flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground">No img</span>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">{product.sku}</TableCell>
+                    <TableCell>{product.name}</TableCell>
+                    <TableCell className="text-right">
+                      {new Intl.NumberFormat('es-AR', {
+                        style: 'currency',
+                        currency: 'ARS'
+                      }).format(product.price || 0)}
+                    </TableCell>
+                    <TableCell className="text-right">{product.total_stock || 0}</TableCell>
+                    <TableCell className="text-center">
+                      <Switch
+                        checked={product.enabled}
+                        onCheckedChange={(checked) => handleProductStatusChange(product.id, checked)}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Acciones</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setEditingProduct(product)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className='text-destructive' onClick={() => setProductToDelete(product)}>
+                            <Trash2 className="mr-2 h-4 w-4"/>
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+        
+        {/* Edit product dialog */}
+        <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Producto</DialogTitle>
+              <DialogDescription>
+                Realiza cambios en la información del producto aquí.
+              </DialogDescription>
+            </DialogHeader>
+            {editingProduct && (
+              <EditProductForm 
+                product={editingProduct} 
+                onSave={updateProduct} 
+                onCancel={() => setEditingProduct(null)} 
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+        
+        {/* Delete product confirmation */}
+        <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción no se puede deshacer. El producto se eliminará permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteProduct}>Eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </>
   );
 };
 

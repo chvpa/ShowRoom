@@ -1,20 +1,50 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>showroom-elegance-dashboard</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
+    <title>ShowRoom - Catálogo Mayorista de Productos</title>
+    <meta name="description" content="ShowRoom es una plataforma web privada para clientes mayoristas, permitiendo la gestión completa de catálogos por marca, carga de pedidos, administración de preventas y gestión de ofertas." />
+    <meta name="keywords" content="showroom, catálogo mayorista, pedidos, preventas, ofertas, productos, Paraguay" />
+    <meta name="author" content="ShowRoom" />
+    <meta name="robots" content="index, follow" />
+    <meta name="language" content="Spanish" />
+    <meta name="revisit-after" content="7 days" />
+    <meta name="generator" content="ShowRoom" />
 
-    <meta property="og:title" content="showroom-elegance-dashboard" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <!-- PWA Support -->
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ShowRoom" />
+
+    <!-- Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+
+    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:url" content="https://showroom.com.py/" />
+    <meta property="og:title" content="ShowRoom - Catálogo Mayorista de Productos" />
+    <meta property="og:description" content="ShowRoom es una plataforma web privada para clientes mayoristas, permitiendo la gestión completa de catálogos por marca, carga de pedidos, administración de preventas y gestión de ofertas." />
+    <meta property="og:image" content="https://showroom.com.py/og-image.png" />
+    <meta property="og:site_name" content="ShowRoom" />
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@lovable_dev" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:url" content="https://showroom.com.py/" />
+    <meta name="twitter:title" content="ShowRoom - Catálogo Mayorista de Productos" />
+    <meta name="twitter:description" content="ShowRoom es una plataforma web privada para clientes mayoristas, permitiendo la gestión completa de catálogos por marca, carga de pedidos, administración de preventas y gestión de ofertas." />
+    <meta name="twitter:image" content="https://showroom.com.py/og-image.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://showroom.com.py/" />
   </head>
 
   <body>
@@ -22,5 +52,20 @@
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => {
+              console.log('Service Worker registrado correctamente:', registration.scope);
+            })
+            .catch(error => {
+              console.error('Error al registrar Service Worker:', error);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

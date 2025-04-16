@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider, useAuth } from "./contexts/auth-context";
 import { BrandProvider, useBrand } from "./contexts/brand-context";
 import { Loader2 } from "lucide-react";
+import { HelmetProvider } from "react-helmet-async";
 
 // Lazy load pages for better performance
 const LoginPage = lazy(() => import("./pages/login"));
@@ -80,145 +81,177 @@ const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 15, // 15 minutos (aumentado de 5 a 15)
       gcTime: 1000 * 60 * 60, // 60 minutos (aumentado de 30 a 60)
       retry: 1,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      refetchOnWindowFocus: false, // No actualizar al volver a la ventana
+      refetchOnReconnect: false, // No actualizar al recuperar conexión
       refetchOnMount: false, // Evitar refetch al montar componentes
       retryOnMount: false, // No reintentar al montar componentes
     },
   },
 });
 
+// Crear un evento para almacenar en caché las consultas entre sesiones usando localStorage
+if (typeof window !== 'undefined') {
+  // Cargar consultas en caché al inicio
+  const cachedQueries = localStorage.getItem('queryCache');
+  if (cachedQueries) {
+    try {
+      const parsedQueries = JSON.parse(cachedQueries);
+      Object.keys(parsedQueries).forEach(key => {
+        queryClient.setQueryData(JSON.parse(key), parsedQueries[key]);
+      });
+    } catch (error) {
+      console.error('Error loading cached queries:', error);
+    }
+  }
+
+  // Guardar consultas en caché periódicamente
+  setInterval(() => {
+    const state = queryClient.getQueryCache().getAll()
+      .filter(query => !query.isStale()) // Solo guardar datos frescos
+      .reduce((acc, query) => {
+        if (query.queryKey) {
+          acc[JSON.stringify(query.queryKey)] = query.state.data;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+    
+    localStorage.setItem('queryCache', JSON.stringify(state));
+  }, 1000 * 60 * 5); // Guardar cada 5 minutos
+}
+
 const App = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AuthProvider>
-          <BrandProvider>
-            <BrowserRouter>
-              <Suspense fallback={<FullScreenLoader />}>
-                <Routes>
-                  {/* Public login route */}
-                  <Route path="/login" element={<LoginPage />} />
-                  
-                  {/* Not found page */}
-                  <Route path="*" element={<NotFound />} />
-                  
-                  {/* Root redirects to appropriate page based on user role */}
-                  <Route path="/" element={
-                    <ProtectedRoute>
-                      <RoleBasedRedirect />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Brand selection - for users with multiple brands */}
-                  <Route path="/brand-selection" element={
-                    <ProtectedRoute>
-                      <BrandSelectionPage />
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Ruta por marca para clientes - URL amigable */}
-                  <Route path="/:marcaSlug/catalogo" element={
-                    <ProtectedRoute>
-                      <Layout activePage="catalog">
-                        <CatalogPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Catalog - accessible by all authenticated users */}
-                  <Route path="/catalog" element={
-                    <ProtectedRoute>
-                      <Layout activePage="catalog">
-                        <CatalogPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Ruta de detalle de producto con marca en la URL */}
-                  <Route path="/:marcaSlug/producto/:id" element={
-                    <ProtectedRoute>
-                      <Layout activePage="catalog">
-                        <ProductDetailPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/product/:id" element={
-                    <ProtectedRoute>
-                      <Layout activePage="catalog">
-                        <ProductDetailPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Ruta del carrito con marca en la URL */}
-                  <Route path="/:marcaSlug/carrito" element={
-                    <ProtectedRoute>
-                      <Layout activePage="cart">
-                        <CartPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/cart" element={
-                    <ProtectedRoute>
-                      <Layout activePage="cart">
-                        <CartPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Admin routes - accessible by superadmin and admin */}
-                  <Route path="/products" element={
-                    <ProtectedRoute requiredRoles={['superadmin', 'admin']}>
-                      <Layout activePage="products">
-                        <ProductsPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/offers" element={
-                    <ProtectedRoute requiredRoles={['superadmin', 'admin']}>
-                      <Layout activePage="offers">
-                        <OffersPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/presale" element={
-                    <ProtectedRoute requiredRoles={['superadmin', 'admin']}>
-                      <Layout activePage="presale">
-                        <PresalePage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  {/* Superadmin only routes */}
-                  <Route path="/brands" element={
-                    <ProtectedRoute requiredRoles={['superadmin']}>
-                      <Layout activePage="brands">
-                        <BrandsPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                  
-                  <Route path="/users" element={
-                    <ProtectedRoute requiredRoles={['superadmin']}>
-                      <Layout activePage="users">
-                        <UsersPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } />
-                </Routes>
-              </Suspense>
-            </BrowserRouter>
-          </BrandProvider>
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AuthProvider>
+            <BrandProvider>
+              <BrowserRouter>
+                <Suspense fallback={<FullScreenLoader />}>
+                  <Routes>
+                    {/* Public login route */}
+                    <Route path="/login" element={<LoginPage />} />
+                    
+                    {/* Not found page */}
+                    <Route path="*" element={<NotFound />} />
+                    
+                    {/* Root redirects to appropriate page based on user role */}
+                    <Route path="/" element={
+                      <ProtectedRoute>
+                        <RoleBasedRedirect />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Brand selection - for users with multiple brands */}
+                    <Route path="/brand-selection" element={
+                      <ProtectedRoute>
+                        <BrandSelectionPage />
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Ruta por marca para clientes - URL amigable */}
+                    <Route path="/:marcaSlug/catalogo" element={
+                      <ProtectedRoute>
+                        <Layout activePage="catalog">
+                          <CatalogPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Catalog - accessible by all authenticated users */}
+                    <Route path="/catalog" element={
+                      <ProtectedRoute>
+                        <Layout activePage="catalog">
+                          <CatalogPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Ruta de detalle de producto con marca en la URL */}
+                    <Route path="/:marcaSlug/producto/:id" element={
+                      <ProtectedRoute>
+                        <Layout activePage="catalog">
+                          <ProductDetailPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    <Route path="/product/:id" element={
+                      <ProtectedRoute>
+                        <Layout activePage="catalog">
+                          <ProductDetailPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Ruta del carrito con marca en la URL */}
+                    <Route path="/:marcaSlug/carrito" element={
+                      <ProtectedRoute>
+                        <Layout activePage="cart">
+                          <CartPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    <Route path="/cart" element={
+                      <ProtectedRoute>
+                        <Layout activePage="cart">
+                          <CartPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Admin routes - accessible by superadmin and admin */}
+                    <Route path="/products" element={
+                      <ProtectedRoute requiredRoles={['superadmin', 'admin']}>
+                        <Layout activePage="products">
+                          <ProductsPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    <Route path="/offers" element={
+                      <ProtectedRoute requiredRoles={['superadmin', 'admin']}>
+                        <Layout activePage="offers">
+                          <OffersPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    <Route path="/presale" element={
+                      <ProtectedRoute requiredRoles={['superadmin', 'admin']}>
+                        <Layout activePage="presale">
+                          <PresalePage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    {/* Superadmin only routes */}
+                    <Route path="/brands" element={
+                      <ProtectedRoute requiredRoles={['superadmin']}>
+                        <Layout activePage="brands">
+                          <BrandsPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                    
+                    <Route path="/users" element={
+                      <ProtectedRoute requiredRoles={['superadmin']}>
+                        <Layout activePage="users">
+                          <UsersPage />
+                        </Layout>
+                      </ProtectedRoute>
+                    } />
+                  </Routes>
+                </Suspense>
+              </BrowserRouter>
+            </BrandProvider>
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </HelmetProvider>
   );
 };
 
