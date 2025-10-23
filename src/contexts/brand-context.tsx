@@ -57,6 +57,7 @@ export const BrandProvider = ({ children }: { children: ReactNode }) => {
     const fetchUserBrands = async () => {
       if (!user) {
         setUserBrands([]);
+        setIsLoading(false);
         return;
       }
       
@@ -95,24 +96,26 @@ export const BrandProvider = ({ children }: { children: ReactNode }) => {
         
         setUserBrands(availableBrands);
         
-        // If user only has access to one brand, auto-select it
+        // Solo auto-seleccionar si no hay marca seleccionada y el usuario tiene una sola marca
         if (availableBrands.length === 1 && !selectedBrand) {
           selectBrand(availableBrands[0]);
         }
         
-        // If the selected brand is not in the user's available brands, clear it
-        if (selectedBrand && !availableBrands.some(brand => brand.id === selectedBrand.id)) {
+        // Solo limpiar la marca si está definitivamente no disponible y hay marcas cargadas
+        if (selectedBrand && availableBrands.length > 0 && !availableBrands.some(brand => brand.id === selectedBrand.id)) {
+          console.warn('Marca seleccionada no disponible para el usuario, limpiando...');
           clearBrand();
         }
       } catch (error) {
         console.error('Error fetching user brands:', error);
+        setUserBrands([]);
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchUserBrands();
-  }, [user, selectedBrand]);
+  }, [user?.id, user?.role]); // Solo depender de user.id y user.role, no de selectedBrand
 
   const selectBrand = (brand: Brand) => {
     setSelectedBrand(brand);

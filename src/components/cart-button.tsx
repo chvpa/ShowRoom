@@ -1,46 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react'; // useEffect y useState ya no son necesarios aquí para itemCount
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { ShoppingCart } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
+import { useCart } from '@/hooks/use-cart'; // Importar el hook del carrito
 
 const CartButton = () => {
-  const [itemCount, setItemCount] = useState(0);
   const navigate = useNavigate();
+  const { itemCount } = useCart(); // Obtener itemCount del contexto del carrito
 
-  useEffect(() => {
-    // Cargar el carrito al montar el componente
-    loadCartItems();
-
-    // Agregar un event listener para detectar cambios en localStorage
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  const loadCartItems = () => {
-    try {
-      const storedCart = localStorage.getItem('cart');
-      if (storedCart) {
-        const parsedCart = JSON.parse(storedCart);
-        const totalItems = parsedCart.reduce((total: number, item: any) => total + (item.totalQuantity || 0), 0);
-        setItemCount(totalItems);
-      } else {
-        setItemCount(0);
-      }
-    } catch (error) {
-      console.error('Error loading cart:', error);
-      setItemCount(0);
-    }
-  };
-
-  const handleStorageChange = (e: StorageEvent) => {
-    if (e.key === 'cart') {
-      loadCartItems();
-    }
-  };
+  // La lógica de useEffect, loadCartItems y handleStorageChange se elimina
+  // ya que el estado del carrito ahora es global y se maneja en CartContext.
+  // CartContext ya se encarga de la persistencia en localStorage.
 
   const handleClick = () => {
     navigate('/cart');

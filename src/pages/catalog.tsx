@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Shirt, Footprints, Watch, ChevronRight, Loader2, Backpack, Search, Plus, Check, ShoppingCart } from 'lucide-react';
+import { Shirt, Footprints, ChevronRight, Loader2, Backpack, Search, ShoppingCart } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { useBrand } from '@/contexts/brand-context';
@@ -10,24 +10,14 @@ import { Brand, Product } from '@/types';
 import { useSupabaseQuery } from '@/hooks/use-supabase-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+
 import { LazyImage } from '@/components/ui/lazy-image';
 import { useDebounce } from '@/hooks/use-debounce';
-import { Checkbox } from '@/components/ui/checkbox';
 
-// Simulación de un hook de carrito
-// En una implementación real, deberías crear un hook real en `/hooks/use-cart.tsx`
-const useCart = () => {
-  const addToCart = async (item: any) => {
-    // Aquí iría la lógica real para añadir al carrito usando Supabase
-    console.log('Añadiendo al carrito:', item);
-    return true;
-  };
-
-  return {
-    addToCart
-  };
-};
+import { useCart } from '@/hooks/use-cart'; 
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationPrevious, PaginationNext, PaginationEllipsis } from '@/components/ui/pagination';
+import { usePaginatedQuery } from '@/hooks/use-supabase-query';
+import { QuickAddModal } from '@/components/ui/quick-add-modal';
 
 type CategoryCardProps = {
   title: string;
@@ -55,29 +45,14 @@ const CategoryCard = ({ title, icon: Icon, description, onClick }: CategoryCardP
   );
 };
 
-const ProductCard = ({ 
-  product, 
-  isSelected,
-  onSelect,
-  onAddToCart,
-  selectionMode
-}: { 
-  product: Product;
-  isSelected?: boolean;
-  onSelect?: (product: Product) => void;
-  onAddToCart: (product: Product) => void;
-  selectionMode: boolean;
-}) => {
+const ProductCard = ({ product }: { product: Product }) => {
   const navigate = useNavigate();
   const { selectedBrand } = useBrand();
+  const { addToCart } = useCart();
+  const [showQuickAdd, setShowQuickAdd] = React.useState(false);
   
   const handleClick = () => {
-    if (selectionMode && onSelect) {
-      onSelect(product);
-      return;
-    }
-    
-    // Usar la nueva ruta con marca en la URL
+    // Navegar al detalle del producto
     if (selectedBrand) {
       navigate(`/${selectedBrand.name.toLowerCase()}/producto/${product.id}`);
     } else {
@@ -87,33 +62,33 @@ const ProductCard = ({
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation(); // Evitar navegación
-    onAddToCart(product);
+    console.log('🛒 ProductCard handleAddToCart clickeado para producto:', product.name);
+    console.log('🛒 Variantes del producto:', product.variants);
+    setShowQuickAdd(true); // Mostrar modal de selección rápida
+    console.log('🛒 showQuickAdd establecido a true');
+  };
+
+  const handleQuickAddToCart = (product: Product, curveType: 'simple' | 'reinforced') => {
+    addToCart(product, curveType);
   };
   
   return (
-    <Card className={`overflow-hidden cursor-pointer hover:shadow-md transition-all relative ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''}`}>
-      <div onClick={handleClick} className="flex flex-col h-full">
+    <Card className="overflow-hidden hover:shadow-md transition-all group flex flex-col h-full">
+      <div onClick={handleClick} className="cursor-pointer flex-grow flex flex-col">
         <div className="aspect-square relative overflow-hidden">
-          {selectionMode && (
-            <div className="absolute top-2 left-2 z-10">
-              <Checkbox 
-                checked={isSelected}
-                className={isSelected ? "bg-primary border-primary text-white" : "border-white bg-black/20"}
-              />
-            </div>
-          )}
           <LazyImage
             src={product.images && product.images[0] ? product.images[0] : ''}
             alt={product.name}
             aspectRatio="1:1"
             placeholderSrc="/placeholder.svg"
             fallbackSrc="/placeholder.svg"
+            className="group-hover:scale-105 transition-transform duration-300"
           />
         </div>
         <CardContent className="p-4 flex-grow">
           <p className="text-sm text-muted-foreground">{product.sku}</p>
           <h3 className="font-medium line-clamp-2 mt-1">{product.name}</h3>
-          <p className="font-semibold mt-2">
+          <p className="font-semibold mt-2 text-primary">
             {new Intl.NumberFormat('es-AR', {
               style: 'currency',
               currency: 'ARS'
@@ -121,7 +96,8 @@ const ProductCard = ({
           </p>
         </CardContent>
       </div>
-      <CardFooter className="p-2 border-t bg-muted/30">
+      
+      <CardFooter className="p-3 border-t bg-muted/30 mt-auto">
         <Button 
           onClick={handleAddToCart} 
           size="sm" 
@@ -131,40 +107,90 @@ const ProductCard = ({
           Añadir al pedido
         </Button>
       </CardFooter>
+      
+      {/* Modal de selección rápida */}
+      <QuickAddModal
+        product={product}
+        isOpen={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        onAddToCart={handleQuickAddToCart}
+      />
     </Card>
   );
 };
 
+const PAGE_SIZE = 24;
+
 const CatalogPage = () => {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { selectedBrand, selectBrand, userBrands } = useBrand();
   const { user } = useAuth();
-  const { addToCart } = useCart();
   // Obtener el parámetro de marca de la URL
   const { marcaSlug } = useParams<{ marcaSlug?: string }>();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // 🔥 FIX: Obtener estado desde URL query params para persistir al cambiar de pestaña
+  const selectedCategory = searchParams.get('categoria') || null;
+  const searchTerm = searchParams.get('busqueda') || '';
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  
+  // Helper function para actualizar query params manteniendo otros valores
+  const updateSearchParams = (updates: Record<string, string | null>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === '') {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+    });
+    setSearchParams(newParams);
+  };
   
   // Efecto para seleccionar la marca basada en el parámetro de la URL
   useEffect(() => {
     const loadBrandFromSlug = async () => {
-      if (marcaSlug && (!selectedBrand || selectedBrand.name.toLowerCase() !== marcaSlug.toLowerCase())) {
-        console.log('Cargando marca desde URL slug:', marcaSlug);
-        // Primero intentar encontrar la marca en las marcas del usuario
-        const brandFromUserBrands = userBrands.find(
-          brand => brand.name.toLowerCase() === marcaSlug.toLowerCase()
-        );
-        
-        if (brandFromUserBrands) {
-          console.log('Marca encontrada en userBrands:', brandFromUserBrands.name);
-          selectBrand(brandFromUserBrands);
-        } else {
-          // Si no está en las marcas del usuario, buscar en la base de datos
-          console.log('Buscando marca en base de datos:', marcaSlug);
+      // Solo ejecutar si hay marcaSlug en la URL y no coincide con la marca actual
+      if (!marcaSlug) return;
+      
+      // 🔥 FIX CRÍTICO: No ejecutar si estamos en una ruta de producto
+      // Esto evita interferencia cuando se vuelve de otra pestaña desde product-detail
+      if (location.pathname.includes('/producto/')) {
+        console.log('🔇 [Catalog] Ignorando carga de marca - estamos en product detail');
+        return; // No hacer nada si estamos en product detail
+      }
+      
+      // 🔥 FIX CRÍTICO: No ejecutar si no estamos en una ruta de catalog
+      // Solo ejecutar en rutas de catálogo (/marca/catalogo)
+      if (!location.pathname.includes('/catalogo')) {
+        console.log('🔇 [Catalog] Ignorando carga de marca - no estamos en ruta de catálogo');
+        return;
+      }
+      
+      // Si ya tenemos la marca correcta, no hacer nada
+      if (selectedBrand && selectedBrand.name.toLowerCase() === marcaSlug.toLowerCase()) {
+        return;
+      }
+      
+      console.log('🔄 [Catalog] Cargando marca desde URL slug:', marcaSlug);
+      
+      // Primero intentar encontrar la marca en las marcas del usuario (más rápido)
+      const brandFromUserBrands = userBrands.find(
+        brand => brand.name.toLowerCase() === marcaSlug.toLowerCase()
+      );
+      
+      if (brandFromUserBrands) {
+        console.log('✅ [Catalog] Marca encontrada en userBrands:', brandFromUserBrands.name);
+        selectBrand(brandFromUserBrands);
+        return;
+      }
+      
+      // Solo buscar en la base de datos si tenemos userBrands cargados y no encontramos la marca
+      if (userBrands.length > 0) {
+        console.log('🔍 [Catalog] Buscando marca en base de datos:', marcaSlug);
+        try {
           const { data, error } = await supabase
             .from('brands')
             .select('*')
@@ -172,31 +198,35 @@ const CatalogPage = () => {
             .maybeSingle();
             
           if (data && !error) {
-            console.log('Marca encontrada en base de datos:', data.name);
+            console.log('✅ [Catalog] Marca encontrada en base de datos:', data.name);
             selectBrand(data);
           } else {
-            // Si no se encuentra la marca, redirigir a la selección de marca
-            console.error('Marca no encontrada, error:', error);
-            navigate('/brand-selection');
+            // Solo redirigir si realmente no se encuentra la marca
+            console.error('❌ [Catalog] Marca no encontrada, error:', error);
+            navigate('/brand-selection', { replace: true });
             toast({
               title: "Marca no encontrada",
               description: "La marca especificada en la URL no existe o no tienes acceso a ella",
               variant: "destructive",
             });
           }
+        } catch (error) {
+          console.error('❌ [Catalog] Error al buscar marca:', error);
         }
       }
     };
     
+    // Solo ejecutar cuando cambie marcaSlug o cuando userBrands se cargue por primera vez
     loadBrandFromSlug();
-  }, [marcaSlug, selectedBrand, userBrands, selectBrand, navigate, toast]);
+  }, [marcaSlug, userBrands.length, location.pathname]); // Agregada location.pathname a las dependencias
 
-  // Redirect to brand selection if no brand is selected
-  if (!selectedBrand) {
+  // Loading state mejorado - solo mostrar si realmente estamos cargando
+  // 🔥 FIX: Solo mostrar loading si estamos específicamente en una ruta de catálogo
+  if (!selectedBrand && marcaSlug && location.pathname.includes('/catalogo')) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p>Cargando catálogo...</p>
+        <p>Cargando catálogo de {marcaSlug}...</p>
       </div>
     );
   }
@@ -222,154 +252,140 @@ const CatalogPage = () => {
     }
   ];
 
-  // Use React Query to fetch products filtered by brand and category
-  const { data: productsResponse, isLoading } = useSupabaseQuery<Product>(
-    ['products', selectedBrand.id, selectedCategory, debouncedSearchTerm], // Query key includes brand, category, and search
+  // Use paginated query para productos filtrados por marca y categoría
+  const {
+    data: productsResponse,
+    isLoading,
+    page,
+    setPage,
+    pageSize,
+  } = usePaginatedQuery<Product>(
+    ['products', selectedBrand?.id ?? '', selectedCategory, debouncedSearchTerm],
     'products',
-    async (query) => {
-      console.log('Consultando productos para catálogo - Marca:', selectedBrand.name, 'Categoría:', selectedCategory);
-      
+    async (query, page, pageSize) => {
+      // Si no hay marca seleccionada, retornar vacío
+      if (!selectedBrand) {
+        return { data: [], error: null, count: 0 };
+      }
+
+      // Simplificamos por ahora - solo productos sin variantes para testear el botón
       let baseQuery = query
         .from('products')
         .select('*')
         .eq('enabled', true)
-        .eq('brand', selectedBrand.name); // Filter by selected brand name, not id
+        .eq('brand', selectedBrand.name);
       
-      // Only apply category filter if a category is selected
       if (selectedCategory) {
-        // El valor en el CSV está en mayúsculas, pero el id de categoría en minúsculas
         const categoryUppercase = selectedCategory.toUpperCase();
-        console.log('Buscando productos con product_type:', categoryUppercase);
         baseQuery = baseQuery.eq('product_type', categoryUppercase);
       }
-
-      // Aplicar filtro de búsqueda si existe
       if (debouncedSearchTerm) {
         baseQuery = baseQuery.or(`name.ilike.%${debouncedSearchTerm}%,sku.ilike.%${debouncedSearchTerm}%`);
       }
       
-      const { data, error } = await baseQuery;
+      // Paginación: calcular rango
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      baseQuery = baseQuery.range(from, to);
       
+      // Obtener productos con count
+      const { data: products, error, count } = await baseQuery;
       if (error) {
-        console.error('Error al consultar productos para catálogo:', error);
         throw error;
       }
       
-      console.log('Productos encontrados en catálogo:', data?.length || 0);
+      // Si count es null, hacer una consulta aparte solo para el total
+      let totalCount = count;
+      if (typeof totalCount !== 'number') {
+        let countQuery = query
+          .from('products')
+          .select('id', { count: 'exact', head: true })
+          .eq('enabled', true)
+          .eq('brand', selectedBrand.name);
+        if (selectedCategory) {
+          countQuery = countQuery.eq('product_type', selectedCategory.toUpperCase());
+        }
+        if (debouncedSearchTerm) {
+          countQuery = countQuery.or(`name.ilike.%${debouncedSearchTerm}%,sku.ilike.%${debouncedSearchTerm}%`);
+        }
+        const { count: total, error: countError } = await countQuery;
+        if (!countError) totalCount = total;
+      }
       
-      return { 
-        data: data || [], 
-        error: null, 
-        count: data?.length || 0 
+      // Obtener variantes para los productos
+      let transformedData: Product[] = [];
+      if (products && products.length > 0) {
+        try {
+          const productIds = products.map(p => p.id);
+          const { data: variants, error: variantsError } = await query
+            .from('product_variants')
+            .select('id, product_id, size, simple_curve, reinforced_curve, stock_quantity, created_at, updated_at')
+            .in('product_id', productIds);
+          
+          if (variantsError) {
+            console.error('Error obteniendo variantes:', variantsError);
+          }
+          
+          // Agrupar variantes por producto
+          const variantsByProduct: Record<string, any[]> = {};
+          if (variants) {
+            variants.forEach(variant => {
+              if (!variantsByProduct[variant.product_id]) {
+                variantsByProduct[variant.product_id] = [];
+              }
+              variantsByProduct[variant.product_id].push({
+                id: variant.id,
+                product_id: variant.product_id,
+                size: variant.size,
+                simple_curve: variant.simple_curve || 0,
+                reinforced_curve: variant.reinforced_curve || 0,
+                stock_quantity: variant.stock_quantity || 0,
+                created_at: variant.created_at,
+                updated_at: variant.updated_at
+              });
+            });
+          }
+          
+          // Combinar productos con sus variantes
+          transformedData = products.map(product => ({
+            ...product,
+            variants: variantsByProduct[product.id] || []
+          })) as Product[];
+          
+        } catch (error) {
+          console.error('Error procesando variantes:', error);
+          // Si hay error, al menos retornar productos sin variantes
+          transformedData = (products || []).map(product => ({
+            ...product,
+            variants: []
+          })) as Product[];
+        }
+      } else {
+        transformedData = [];
+      }
+      
+      return {
+        data: transformedData,
+        error: null,
+        count: totalCount || 0,
       };
     },
-    {
-      enabled: !!selectedBrand.id, // Only run query if we have a brand
-      staleTime: 1000 * 60 * 10, // 10 minutes
-    }
+    PAGE_SIZE
   );
 
   const handleCategorySelect = (categoryId: string) => {
     console.log('Seleccionando categoría:', categoryId);
-    setSelectedCategory(categoryId);
-    setSearchTerm('');
-    setSelectedProducts([]);
-    setSelectionMode(false);
+    // 🔥 FIX: Usar query params para persistir categoría al cambiar de pestaña
+    updateSearchParams({ categoria: categoryId, busqueda: null });
   };
 
   const handleBackToCategories = () => {
-    setSelectedCategory(null);
-    setSearchTerm('');
-    setSelectedProducts([]);
-    setSelectionMode(false);
-  };
-
-  const handleAddToCart = async (product: Product) => {
-    // Implementación real para añadir al carrito con curva simple
-    try {
-      const { id, name, price, sku, images } = product;
-      
-      // Crear el objeto para el carrito
-      const cartItem = {
-        product_id: id,
-        user_id: user?.id,
-        brand_id: selectedBrand.id,
-        quantity: 1, // Cantidad por defecto
-        // En una implementación real, aquí se agregarían tallas de curva simple
-        size: "Estándar", // Indicar que es talla estándar o curva simple
-        product: {
-          id,
-          name,
-          price,
-          sku,
-          images
-        }
-      };
-      
-      // Usar la función del hook para añadir al carrito
-      await addToCart(cartItem);
-      
-      // Mostrar notificación de éxito
-      toast({
-        title: "Producto añadido al carrito",
-        description: `${name} (Curva simple) se ha añadido al carrito.`,
-      });
-    } catch (error) {
-      console.error("Error al añadir al carrito:", error);
-      toast({
-        title: "Error",
-        description: "No se pudo añadir el producto al carrito",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleToggleSelection = (product: Product) => {
-    setSelectedProducts(prev => {
-      const isSelected = prev.some(p => p.id === product.id);
-      if (isSelected) {
-        return prev.filter(p => p.id !== product.id);
-      } else {
-        return [...prev, product];
-      }
-    });
-  };
-
-  const handleToggleSelectionMode = () => {
-    if (selectionMode) {
-      setSelectionMode(false);
-      setSelectedProducts([]);
-    } else {
-      setSelectionMode(true);
-    }
-  };
-
-  const handleAddSelectedToCart = () => {
-    if (selectedProducts.length === 0) {
-      toast({
-        title: "No hay productos seleccionados",
-        description: "Selecciona al menos un producto para añadir al carrito.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Añadir todos los productos seleccionados al carrito
-    selectedProducts.forEach(product => {
-      handleAddToCart(product);
-    });
-
-    toast({
-      title: "Productos añadidos al carrito",
-      description: `Se han añadido ${selectedProducts.length} productos al carrito.`,
-    });
-
-    setSelectedProducts([]);
-    setSelectionMode(false);
+    // 🔥 FIX: Limpiar query params para volver a vista de categorías
+    updateSearchParams({ categoria: null, busqueda: null });
   };
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-6 space-y-6" data-products-container>
       {selectedCategory ? (
         // Vista de productos de categoría
         <div>
@@ -388,48 +404,16 @@ const CatalogPage = () => {
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              {/* Barra de búsqueda */}
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar productos..."
-                  className="pl-8 w-full sm:w-[250px] md:w-[300px]"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              {/* Botones de acción */}
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={selectionMode ? "secondary" : "outline"}
-                  size="sm"
-                  onClick={handleToggleSelectionMode}
-                >
-                  {selectionMode ? (
-                    <>
-                      <Check className="mr-1 h-4 w-4" /> Cancelar
-                    </>
-                  ) : (
-                    <>
-                      <Check className="mr-1 h-4 w-4" /> Seleccionar
-                    </>
-                  )}
-                </Button>
-
-                {selectionMode && (
-                  <Button
-                    size="sm"
-                    disabled={selectedProducts.length === 0}
-                    onClick={handleAddSelectedToCart}
-                  >
-                    <ShoppingCart className="mr-1 h-4 w-4" />
-                    Añadir {selectedProducts.length > 0 && `(${selectedProducts.length})`}
-                  </Button>
-                )}
-              </div>
+            {/* Barra de búsqueda */}
+            <div className="relative w-full sm:w-auto">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar productos..."
+                className="pl-8 w-full sm:w-[250px] md:w-[300px]"
+                value={searchTerm}
+                onChange={(e) => updateSearchParams({ busqueda: e.target.value })}
+              />
             </div>
           </div>
 
@@ -442,24 +426,68 @@ const CatalogPage = () => {
             <div className="text-center py-12">
               <p className="text-muted-foreground">No se encontraron productos en esta categoría.</p>
               {debouncedSearchTerm && (
-                <Button variant="link" onClick={() => setSearchTerm('')}>
+                <Button variant="link" onClick={() => updateSearchParams({ busqueda: null })}>
                   Limpiar búsqueda
                 </Button>
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {productsResponse?.data.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  selectionMode={selectionMode}
-                  isSelected={selectedProducts.some(p => p.id === product.id)}
-                  onSelect={handleToggleSelection}
-                  onAddToCart={handleAddToCart}
-                />
-              ))}
-            </div>
+            <>
+              <div id="products-section" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {productsResponse?.data.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                  />
+                ))}
+              </div>
+              {/* Paginador */}
+              {productsResponse && productsResponse.count > pageSize && (
+                <div className="flex justify-center mt-8">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={page > 1 ? () => setPage(page - 1) : undefined}
+                          className={page === 1 ? 'pointer-events-none opacity-50' : ''}
+                        />
+                      </PaginationItem>
+                      {/* Mostrar hasta 5 páginas alrededor de la actual */}
+                      {Array.from({ length: Math.ceil(productsResponse.count / pageSize) }, (_, i) => i + 1)
+                        .filter(p =>
+                          p === 1 ||
+                          p === Math.ceil(productsResponse.count / pageSize) ||
+                          (p >= page - 2 && p <= page + 2)
+                        )
+                        .map((p, idx, arr) => (
+                          <React.Fragment key={p}>
+                            {idx > 0 && p - arr[idx - 1] > 1 && (
+                              <PaginationItem>
+                                <PaginationEllipsis />
+                              </PaginationItem>
+                            )}
+                            <PaginationItem>
+                              <PaginationLink
+                                isActive={p === page}
+                                onClick={() => setPage(p)}
+                              >
+                                {p}
+                              </PaginationLink>
+                            </PaginationItem>
+                          </React.Fragment>
+                        ))}
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={page < Math.ceil(productsResponse.count / pageSize) ? () => setPage(page + 1) : undefined}
+                          className={page === Math.ceil(productsResponse.count / pageSize) ? 'pointer-events-none opacity-50' : ''}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
 
         </div>

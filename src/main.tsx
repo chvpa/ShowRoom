@@ -10,9 +10,6 @@ if (!rootElement) {
   throw new Error('Failed to find the root element');
 }
 
-// Create and render root in strict mode for better error detection
-createRoot(rootElement).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
+// Render app without StrictMode to avoid double renders in development
+// StrictMode is useful for finding bugs but causes unnecessary re-renders
+createRoot(rootElement).render(<App />);

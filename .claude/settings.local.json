@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo:*)",
+      "Bash(dir:*)",
+      "WebSearch",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__list_extensions",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__get_advisors"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

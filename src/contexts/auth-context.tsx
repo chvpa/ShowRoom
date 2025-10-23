@@ -98,10 +98,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Initial auth check
     checkAuth();
     
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Subscribe to auth changes - OPTIMIZADO para evitar refrescos innecesarios
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state change:', event, session?.user?.id);
       setSession(session);
-      checkAuth();
+      
+      // Solo checkAuth si es un cambio real de sesión, no por cambios de foco
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        checkAuth();
+      }
     });
     
     // Cleanup on unmount

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import CSVUploader from '@/components/CSVUploader';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, Loader2, Minus, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,13 +34,22 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle, Package } from "lucide-react";
 import { useBrand } from '@/contexts/brand-context';
 import { Product } from '@/types';
-import { useSupabaseQuery } from '@/hooks/use-supabase-query';
+import { usePaginatedQuery } from '@/hooks/use-supabase-query';
 import { Helmet } from "react-helmet-async";
 
 interface EditProductFormProps {
@@ -146,92 +155,234 @@ const ProductsPage = () => {
   const queryClient = useQueryClient();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  
+  // Estados para selección masiva
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [deleteAllProducts, setDeleteAllProducts] = useState(false); // Para distinguir si eliminar solo visibles o todos
+  
   const navigate = useNavigate();
   const { selectedBrand } = useBrand();
 
   // Redirect to brand selection if no brand is selected
+  useEffect(() => {
+    if (!selectedBrand) {
+      navigate('/brand-selection');
+    }
+  }, [selectedBrand, navigate]);
+
+  // Early return if no brand selected (after useEffect to avoid hook rules violation)
   if (!selectedBrand) {
-    navigate('/brand-selection');
     return null;
   }
 
-  // Use React Query via our custom hook for efficient data fetching with caching
+  // Use paginatedQuery para manejo eficiente de grandes datasets
+  const pageSize = 24; // 24 productos por página para grilla de 4x6
   const { 
     data: productsResponse, 
     isLoading, 
     isError,
-    refetch 
-  } = useSupabaseQuery<Product>(
+    refetch,
+    page,
+    setPage,
+    nextPage,
+    prevPage,
+    goToPage
+  } = usePaginatedQuery<Product>(
     ['products', selectedBrand.id],
     'products',
-    async (client) => {
-      console.log('Consultando productos para marca ID:', selectedBrand.id);
-      console.log('Nombre de la marca:', selectedBrand.name);
+    async (client, currentPage, currentPageSize) => {
+      console.log(`📄 Consultando página ${currentPage} (${currentPageSize} productos) para marca: ${selectedBrand.name}`);
       
-      // Usar el cliente de supabase correctamente, pero filtrando por el campo brand (nombre) en lugar de brand_id
-      const { data, error } = await client
-        .from('products')
-        .select('*')
-        .eq('brand', selectedBrand.name);
+      try {
+        // Calcular offset para paginación
+        const from = (currentPage - 1) * currentPageSize;
+        const to = from + currentPageSize - 1;
+
+        // Consultar productos con paginación
+        const { data, error, count } = await client
+          .from('products')
+          .select('*', { count: 'exact' })
+          .eq('brand', selectedBrand.name)
+          .eq('enabled', true)
+          .range(from, to)
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      
-      console.log('Productos encontrados:', data?.length || 0);
-      
-      // Process the data to include stock information from variants
-      if (data && data.length > 0) {
-        const productsWithStock = await Promise.all(data.map(async (product) => {
-          try {
-            // Get stock information from variants
-            const { data: variants, error: variantsError } = await supabase
-              .from('product_variants')
-              .select('stock_quantity')
-              .eq('product_id', product.id);
-            
-            if (variantsError) throw variantsError;
-            
-            // Calculate total stock
-            const totalStock = variants?.reduce(
-              (sum, variant) => sum + (variant.stock_quantity || 0), 
-              0
-            ) || 0;
-            
-            return {
-              ...product,
-              total_stock: totalStock
-            };
-          } catch (error) {
-            console.error(`Error fetching stock for product ${product.id}:`, error);
-            return {
-              ...product,
-              total_stock: 0
-            };
-          }
-        }));
+        console.log(`✅ Página ${currentPage}: ${data?.length || 0} productos de ${count || 0} totales`);
         
-        return { 
-          data: productsWithStock, 
-          error: null, 
-          count: productsWithStock.length 
+        // Process the data to include stock information from variants
+        if (data && data.length > 0) {
+          const productsWithStock = await Promise.all(data.map(async (product) => {
+            try {
+              // Get stock information from variants
+              const { data: variants, error: variantsError } = await supabase
+                .from('product_variants')
+                .select('stock_quantity')
+                .eq('product_id', product.id);
+              
+              if (variantsError) throw variantsError;
+              
+              // Calculate total stock
+              const totalStock = variants?.reduce(
+                (sum, variant) => sum + (variant.stock_quantity || 0), 
+                0
+              ) || 0;
+              
+              return {
+                ...product,
+                total_stock: totalStock
+              };
+            } catch (error) {
+              console.error('Error fetching stock for product:', product.id, error);
+              return { ...product, total_stock: 0 };
+            }
+          }));
+          
+          return {
+            data: productsWithStock,
+            error: null,
+            count: count || 0
+          };
+        }
+        
+        return {
+          data: data || [],
+          error: null,
+          count: count || 0
+        };
+      } catch (error: any) {
+        console.error('Error in products query:', error);
+        return {
+          data: [],
+          error: error,
+          count: 0
         };
       }
-      
-      return { 
-        data: data || [], 
-        error: null, 
-        count: data?.length || 0 
-      };
     },
-    {
-      staleTime: 1000 * 60 * 2, // 2 minutes cache
-      refetchOnWindowFocus: false
-    }
+    pageSize
   );
 
-  // Extraer los productos de la respuesta
   const products = productsResponse?.data || [];
+  const totalCount = productsResponse?.count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
 
-  // Function to update a product
+  // Función para obtener TODOS los productos de la marca (para eliminación masiva)
+  const getAllProductIds = async (): Promise<string[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id')
+        .eq('brand', selectedBrand.name)
+        .eq('enabled', true);
+      
+      if (error) throw error;
+      return data?.map(p => p.id) || [];
+    } catch (error) {
+      console.error('Error fetching all product IDs:', error);
+      return [];
+    }
+  };
+
+  // Funciones para selección masiva
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allProductIds = new Set(products.map((product: Product) => product.id));
+      setSelectedProducts(allProductIds);
+      setDeleteAllProducts(false); // Solo página actual
+    } else {
+      setSelectedProducts(new Set());
+      setDeleteAllProducts(false);
+    }
+  };
+
+  const handleSelectAllBrand = async () => {
+    const allIds = await getAllProductIds();
+    setSelectedProducts(new Set(allIds));
+    setDeleteAllProducts(true); // Toda la marca
+    toast({
+      title: "Productos seleccionados",
+      description: `Se seleccionaron ${allIds.length} productos de toda la marca.`,
+    });
+  };
+
+  const handleSelectProduct = (productId: string, checked: boolean) => {
+    const newSelected = new Set(selectedProducts);
+    if (checked) {
+      newSelected.add(productId);
+    } else {
+      newSelected.delete(productId);
+    }
+    setSelectedProducts(newSelected);
+    // Si deseleccionamos algo, ya no es "toda la marca"
+    if (!checked) {
+      setDeleteAllProducts(false);
+    }
+  };
+
+  const isAllSelected = products.length > 0 && selectedProducts.size === products.length && !deleteAllProducts;
+  const isIndeterminate = selectedProducts.size > 0 && selectedProducts.size < products.length && !deleteAllProducts;
+
+  // Función de eliminación masiva optimizada
+  const bulkDeleteProducts = async () => {
+    if (selectedProducts.size === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const productIds = Array.from(selectedProducts);
+      
+      console.log(`🗑️ Eliminando ${productIds.length} productos en lote${deleteAllProducts ? ' (TODA LA MARCA)' : ' (página actual)'}...`);
+      
+      // Eliminar variantes primero (por la relación de foreign key)
+      const { error: variantsError } = await supabase
+        .from('product_variants')
+        .delete()
+        .in('product_id', productIds);
+      
+      if (variantsError) throw variantsError;
+      
+      // Eliminar productos
+      const { error: productsError } = await supabase
+        .from('products')
+        .delete()
+        .in('id', productIds);
+      
+      if (productsError) throw productsError;
+      
+      // Invalidar caché y actualizar UI
+      queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
+      
+      // Limpiar selección
+      setSelectedProducts(new Set());
+      setDeleteAllProducts(false);
+      setShowBulkDeleteDialog(false);
+      
+      // Si eliminamos toda la marca y estamos en una página que ya no existe, volver a la página 1
+      if (deleteAllProducts || (products.length === selectedProducts.size && page > 1)) {
+        goToPage(1);
+      }
+      
+      toast({
+        title: "Productos eliminados",
+        description: `Se eliminaron ${productIds.length} productos correctamente.`,
+      });
+      
+      console.log(`✅ ${productIds.length} productos eliminados exitosamente`);
+      
+    } catch (error: any) {
+      console.error('Error en eliminación masiva:', error);
+      toast({
+        title: "Error al eliminar productos",
+        description: error.message || "No se pudieron eliminar los productos seleccionados",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const updateProduct = async (updatedProduct: Partial<Product>) => {
     if (!editingProduct) return;
     
@@ -243,13 +394,13 @@ const ProductsPage = () => {
       
       if (error) throw error;
       
-      // Close the dialog and invalidate queries to refresh data
-      setEditingProduct(null);
+      // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
       
+      setEditingProduct(null);
       toast({
         title: "Éxito",
-        description: "El producto ha sido actualizado",
+        description: "Producto actualizado correctamente",
       });
     } catch (error: any) {
       console.error('Error updating product:', error);
@@ -261,11 +412,19 @@ const ProductsPage = () => {
     }
   };
 
-  // Function to delete a product
   const deleteProduct = async () => {
     if (!productToDelete) return;
     
     try {
+      // First delete variants to avoid foreign key constraint issues
+      const { error: variantsError } = await supabase
+        .from('product_variants')
+        .delete()
+        .eq('product_id', productToDelete.id);
+      
+      if (variantsError) throw variantsError;
+      
+      // Then delete the product
       const { error } = await supabase
         .from('products')
         .delete()
@@ -273,13 +432,13 @@ const ProductsPage = () => {
       
       if (error) throw error;
       
-      // Close the dialog and invalidate queries to refresh data
-      setProductToDelete(null);
+      // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
       
+      setProductToDelete(null);
       toast({
         title: "Éxito",
-        description: "El producto ha sido eliminado",
+        description: "Producto eliminado correctamente",
       });
     } catch (error: any) {
       console.error('Error deleting product:', error);
@@ -323,27 +482,57 @@ const ProductsPage = () => {
       <Helmet>
         <title>Catálogo de Productos - Showroom</title>
       </Helmet>
-      <div className="space-y-6">
+      <div className="space-y-6" data-products-container>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className='flex flex-col gap-2'>
             <h1 className="text-2xl lg:text-3xl font-bold">Productos de {selectedBrand.name}</h1>
-            <p className="text-muted-foreground">Administra los productos de tu marca</p>
+            <p className="text-muted-foreground">
+              Administra los productos de tu marca • Página {page} de {totalPages} • {totalCount} productos totales
+            </p>
           </div>
           
-          <CSVUploader 
-            bucketName="products" 
-            onSuccess={() => {
-              // Forzar la recarga de datos para asegurar que se muestren los nuevos productos
-              console.log('Productos importados, refrescando datos...');
-              queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
-              refetch();
-              toast({
-                title: "Éxito",
-                description: "Los productos se han importado correctamente",
-              });
-            }}
-            brandId={selectedBrand.id}
-          />
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Botón de eliminación masiva */}
+            {selectedProducts.size > 0 && (
+              <div className="flex gap-2">
+                {!deleteAllProducts && totalCount > products.length && (
+                  <Button 
+                    variant="outline" 
+                    onClick={handleSelectAllBrand}
+                    className="gap-2"
+                  >
+                    <Package className="h-4 w-4" />
+                    Seleccionar toda la marca ({totalCount})
+                  </Button>
+                )}
+                <Button 
+                  variant="destructive" 
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  disabled={isDeleting}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar seleccionados ({selectedProducts.size})
+                  {deleteAllProducts && <span className="text-xs">(TODOS)</span>}
+                </Button>
+              </div>
+            )}
+            
+            <CSVUploader 
+              bucketName="products" 
+              onSuccess={() => {
+                // Forzar la recarga de datos para asegurar que se muestren los nuevos productos
+                console.log('Productos importados, refrescando datos...');
+                queryClient.invalidateQueries({ queryKey: ['products', selectedBrand.id] });
+                refetch();
+                toast({
+                  title: "Éxito",
+                  description: "Los productos se han importado correctamente",
+                });
+              }}
+              brandId={selectedBrand.id}
+            />
+          </div>
         </div>
         
         {isLoading ? (
@@ -359,7 +548,7 @@ const ProductsPage = () => {
               <Button variant="outline" size="sm" onClick={() => refetch()}>Reintentar</Button>
             </CardContent>
           </Card>
-        ) : products.length === 0 ? (
+        ) : totalCount === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-4 p-6">
               <Package className="h-12 w-12 text-muted-foreground" />
@@ -372,80 +561,164 @@ const ProductsPage = () => {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Imagen</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className="text-right">Precio</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
-                  <TableHead className="text-center">Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <div className="h-12 w-12 rounded border overflow-hidden">
-                        {product.images && product.images[0] ? (
-                          <img 
-                            src={product.images[0]} 
-                            alt={product.name} 
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = '/placeholder.svg';
-                            }}
-                          />
+          <>
+            <div id="products-section" />
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">
+                      <div className="flex items-center justify-center">
+                        {isIndeterminate ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 border rounded-sm bg-primary text-primary-foreground"
+                            onClick={() => handleSelectAll(false)}
+                            aria-label="Deseleccionar todos los productos"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
                         ) : (
-                          <div className="h-full w-full bg-muted flex items-center justify-center">
-                            <span className="text-xs text-muted-foreground">No img</span>
-                          </div>
+                          <Checkbox
+                            checked={isAllSelected}
+                            onCheckedChange={handleSelectAll}
+                            aria-label="Seleccionar todos los productos de esta página"
+                          />
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{product.sku}</TableCell>
-                    <TableCell>{product.name}</TableCell>
-                    <TableCell className="text-right">
-                      {new Intl.NumberFormat('es-AR', {
-                        style: 'currency',
-                        currency: 'ARS'
-                      }).format(product.price || 0)}
-                    </TableCell>
-                    <TableCell className="text-right">{product.total_stock || 0}</TableCell>
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={product.enabled}
-                        onCheckedChange={(checked) => handleProductStatusChange(product.id, checked)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Acciones</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setEditingProduct(product)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className='text-destructive' onClick={() => setProductToDelete(product)}>
-                            <Trash2 className="mr-2 h-4 w-4"/>
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead className="w-[100px]">Imagen</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Descripción</TableHead>
+                    <TableHead className="text-right">Precio</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead className="text-center">Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                </TableHeader>
+                <TableBody>
+                  {products.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedProducts.has(product.id)}
+                          onCheckedChange={(checked) => handleSelectProduct(product.id, checked as boolean)}
+                          aria-label={`Seleccionar producto ${product.sku}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="h-12 w-12 rounded border overflow-hidden">
+                          {product.images && product.images[0] ? (
+                            <img 
+                              src={product.images[0]} 
+                              alt={product.name} 
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder.svg';
+                              }}
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-muted flex items-center justify-center">
+                              <span className="text-xs text-muted-foreground">No img</span>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{product.sku}</TableCell>
+                      <TableCell>{product.name}</TableCell>
+                      <TableCell className="text-right">
+                        {new Intl.NumberFormat('es-AR', {
+                          style: 'currency',
+                          currency: 'ARS'
+                        }).format(product.price || 0)}
+                      </TableCell>
+                      <TableCell className="text-right">{product.total_stock || 0}</TableCell>
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={product.enabled}
+                          onCheckedChange={(checked) => handleProductStatusChange(product.id, checked)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Acciones</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setEditingProduct(product)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className='text-destructive' onClick={() => setProductToDelete(product)}>
+                              <Trash2 className="mr-2 h-4 w-4"/>
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+
+            {/* Paginación */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {((page - 1) * pageSize) + 1} a {Math.min(page * pageSize, totalCount)} de {totalCount} productos
+                </p>
+                
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={page > 1 ? prevPage : undefined}
+                        className={page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                    
+                    {/* Números de página */}
+                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                      let pageNumber;
+                      if (totalPages <= 7) {
+                        pageNumber = i + 1;
+                      } else if (page <= 4) {
+                        pageNumber = i + 1;
+                      } else if (page >= totalPages - 3) {
+                        pageNumber = totalPages - 6 + i;
+                      } else {
+                        pageNumber = page - 3 + i;
+                      }
+                      
+                      return (
+                        <PaginationItem key={pageNumber}>
+                          <PaginationLink
+                            onClick={() => goToPage(pageNumber)}
+                            isActive={page === pageNumber}
+                            className="cursor-pointer"
+                          >
+                            {pageNumber}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    })}
+                    
+                    <PaginationItem>
+                      <PaginationNext 
+                        onClick={page < totalPages ? nextPage : undefined}
+                        className={page >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
+          </>
         )}
         
         {/* Edit product dialog */}
@@ -479,6 +752,43 @@ const ProductsPage = () => {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={deleteProduct}>Eliminar</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Bulk delete confirmation */}
+        <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar productos seleccionados?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción no se puede deshacer. Se eliminarán permanentemente {selectedProducts.size} producto{selectedProducts.size > 1 ? 's' : ''} seleccionado{selectedProducts.size > 1 ? 's' : ''} y todas sus variantes.
+                {deleteAllProducts && (
+                  <span className="block mt-2 font-semibold text-destructive">
+                    ⚠️ ATENCIÓN: Se eliminarán TODOS los productos de la marca "{selectedBrand.name}", incluyendo los que no están visibles en esta página.
+                  </span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={bulkDeleteProducts}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    Eliminar productos
+                    {deleteAllProducts && <span className="ml-1 text-xs">(TODOS)</span>}
+                  </>
+                )}
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

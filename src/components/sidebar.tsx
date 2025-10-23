@@ -7,10 +7,9 @@ import {
   Tag, 
   Package, 
   Percent, 
-  Clock 
+  Clock,
+  ShoppingBag
 } from 'lucide-react';
-import { Select } from '@/components/ui/select';
-
 type NavItemProps = {
   icon: React.ElementType;
   label: string;
@@ -40,18 +39,12 @@ type SidebarProps = {
 };
 
 const Sidebar = ({ activePage = "catalog" }: SidebarProps) => {
-  const [selectedBrand, setSelectedBrand] = useState('');
-
-  const handleBrandChange = (event) => {
-    const brand = event.target.value;
-    setSelectedBrand(brand);
-    // Aquí podrías redirigir al catálogo de la nueva marca seleccionada
-  };
 
   const navItems = [
     { icon: Layers, label: "Catálogo", href: "/", id: "catalog" },
     { icon: Tag, label: "Marcas", href: "/brands", id: "brands" },
     { icon: Package, label: "Productos", href: "/products", id: "products" },
+    { icon: ShoppingBag, label: "Pedidos", href: "/orders", id: "orders" },
     { icon: Percent, label: "Ofertas", href: "/offers", id: "offers" },
     { icon: Clock, label: "Preventa", href: "/presale", id: "presale" },
   ];
@@ -60,12 +53,10 @@ const Sidebar = ({ activePage = "catalog" }: SidebarProps) => {
     <aside className="w-64 border-r bg-sidebar fixed inset-y-0 flex flex-col">
       <div className="p-6">
         <Logo />
-        <Select value={selectedBrand} onChange={handleBrandChange} className="mt-4">
-          <option value="">Selecciona una marca</option>
-          <option value="CAT">CAT</option>
-          <option value="New Balance">New Balance</option>
-          {/* Agregar más opciones de marca según sea necesario */}
-        </Select>
+        {/* TODO: Implementar selector de marca con el contexto de marca */}
+        <div className="mt-4 text-sm text-muted-foreground">
+          Selector de marca se manejará desde el contexto
+        </div>
       </div>
       <div className="px-3 py-2">
         <nav className="space-y-1">

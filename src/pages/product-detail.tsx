@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useBrand } from "@/contexts/brand-context";
+import { useCart } from "@/hooks/use-cart";
 
 interface Product {
   id: string;
@@ -54,7 +55,51 @@ const ProductDetailPage = () => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { selectedBrand } = useBrand();
+  const { selectedBrand, selectBrand, userBrands } = useBrand();
+  const { addToCart } = useCart();
+
+  useEffect(() => {
+    const loadBrandFromSlug = async () => {
+      if (!marcaSlug) return;
+      
+      if (selectedBrand && selectedBrand.name.toLowerCase() === marcaSlug.toLowerCase()) {
+        return;
+      }
+      
+      console.log('🔄 [ProductDetail] Cargando marca desde URL slug:', marcaSlug);
+      
+      const brandFromUserBrands = userBrands.find(
+        brand => brand.name.toLowerCase() === marcaSlug.toLowerCase()
+      );
+      
+      if (brandFromUserBrands) {
+        console.log('✅ [ProductDetail] Marca encontrada en userBrands:', brandFromUserBrands.name);
+        selectBrand(brandFromUserBrands);
+        return;
+      }
+      
+      if (userBrands.length > 0) {
+        try {
+          const { data, error } = await supabase
+            .from('brands')
+            .select('*')
+            .ilike('name', marcaSlug)
+            .maybeSingle();
+            
+          if (data && !error) {
+            console.log('✅ [ProductDetail] Marca encontrada en base de datos:', data.name);
+            selectBrand(data);
+          } else {
+            console.error('❌ [ProductDetail] Marca no encontrada:', error);
+          }
+        } catch (error) {
+          console.error('❌ [ProductDetail] Error al buscar marca:', error);
+        }
+      }
+    };
+    
+    loadBrandFromSlug();
+  }, [marcaSlug, userBrands.length, selectedBrand, selectBrand]);
 
   useEffect(() => {
     if (id) {
@@ -66,7 +111,6 @@ const ProductDetailPage = () => {
     try {
       setLoading(true);
       
-      // Fetch product details
       const { data: productData, error: productError } = await supabase
         .from('products')
         .select('*')
@@ -75,7 +119,6 @@ const ProductDetailPage = () => {
       
       if (productError) throw productError;
       
-      // Fetch product variants
       const { data: variantsData, error: variantsError } = await supabase
         .from('product_variants')
         .select('*')
@@ -83,16 +126,12 @@ const ProductDetailPage = () => {
       
       if (variantsError) throw variantsError;
       
-      // Ordenar variantes por talla
       const orderedVariants = [...(variantsData as ProductVariant[] || [])].sort((a, b) => {
-        // Función para convertir tallas alfanuméricas a valores numéricos para ordenar
         const getSizeValue = (size: string) => {
-          // Si es un número (o número en formato string), convertir a número
           if (!isNaN(Number(size))) {
             return Number(size);
           }
           
-          // Para tallas como S, M, L, XL, etc.
           const sizeMap: Record<string, number> = {
             'XXS': 10,
             'XS': 20,
@@ -106,13 +145,12 @@ const ProductDetailPage = () => {
           
           const upperSize = size.toUpperCase();
           
-          return sizeMap[upperSize] || 1000; // Valor por defecto alto para tallas desconocidas
+          return sizeMap[upperSize] || 1000;
         };
         
         return getSizeValue(a.size) - getSizeValue(b.size);
       });
       
-      // Combine product data with ordered variants
       const productWithVariants: Product = {
         ...productData,
         variants: orderedVariants,
@@ -120,14 +158,12 @@ const ProductDetailPage = () => {
       
       setProduct(productWithVariants);
       
-      // Initialize quantities for each variant
       const initialQuantities: Record<string, number> = {};
       orderedVariants.forEach((variant) => {
         initialQuantities[variant.size || ''] = 0;
       });
       setQuantities(initialQuantities);
       
-      // Aplicar la curva simple por defecto
       setTimeout(() => {
         if (orderedVariants.length > 0) {
           const simpleQuantities: Record<string, number> = {};
@@ -151,7 +187,6 @@ const ProductDetailPage = () => {
   };
 
   const handleQuantityChange = (size: string, value: number) => {
-    // Ensure quantity doesn't go below 0 or above available stock
     const variant = product?.variants?.find(v => v.size === size);
     const maxStock = variant?.stock_quantity || 0;
     const newValue = Math.max(0, Math.min(value, maxStock));
@@ -170,7 +205,6 @@ const ProductDetailPage = () => {
     handleQuantityChange(size, (quantities[size] || 0) - 1);
   };
   
-  // Aplicar la curva seleccionada automáticamente
   const applyCurve = (curveType: CurveType) => {
     if (!product || !product.variants) return;
     
@@ -182,7 +216,6 @@ const ProductDetailPage = () => {
       } else if (curveType === 'reinforced') {
         newQuantities[variant.size] = variant.reinforced_curve || 0;
       } else {
-        // Para curva personalizada, mantenemos los valores actuales
         newQuantities[variant.size] = quantities[variant.size] || 0;
       }
     });
@@ -190,7 +223,6 @@ const ProductDetailPage = () => {
     setQuantities(newQuantities);
   };
   
-  // Actualizar cantidades cuando cambia el tipo de curva
   useEffect(() => {
     if (selectedCurveType === 'simple' || selectedCurveType === 'reinforced') {
       applyCurve(selectedCurveType);
@@ -198,58 +230,47 @@ const ProductDetailPage = () => {
   }, [selectedCurveType]);
 
   const handleAddToCart = () => {
-    // Check if any quantity is selected
-    const totalQuantity = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
-    
-    if (totalQuantity === 0) {
+    if (!product) {
       toast({
         title: "Error",
-        description: "Debes seleccionar al menos una talla y cantidad.",
+        description: "No se pudo obtener la información del producto.",
         variant: "destructive",
       });
       return;
     }
+
+    // Para curvas personalizadas, verificar que hay cantidades seleccionadas
+    if (selectedCurveType === 'custom') {
+      const totalQuantity = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
+      
+      if (totalQuantity === 0) {
+        toast({
+          title: "Error",
+          description: "Debes seleccionar al menos una talla y cantidad.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Para curvas personalizadas, necesitamos crear variantes temporales
+      const customVariants = product.variants?.map(variant => ({
+        ...variant,
+        simple_curve: quantities[variant.size] || 0,
+        reinforced_curve: 0
+      })) || [];
+
+             const productForCart = {
+         ...product,
+         variants: customVariants
+       };
+
+       addToCart(productForCart as any, 'simple');
+     } else {
+       // Para curvas predefinidas, usar el tipo de curva seleccionado
+       addToCart(product as any, selectedCurveType);
+     }
     
-    // Create cart item with variants information
-    const cartItem = {
-      productId: product?.id,
-      productName: product?.name,
-      productSku: product?.sku,
-      productImage: product?.images?.[0],
-      price: product?.price,
-      curveType: selectedCurveType,
-      quantities: { ...quantities },
-      totalQuantity,
-      totalPrice: (product?.price || 0) * totalQuantity,
-      variants: product?.variants?.map(variant => ({
-        id: variant.id,
-        size: variant.size,
-        quantity: quantities[variant.size] || 0
-      })).filter(v => (quantities[v.size] || 0) > 0) || []
-    };
-    
-    // Get existing cart from localStorage or initialize empty array
-    const existingCart = JSON.parse(localStorage.getItem('cart') || '[]');
-    
-    // Add new item to cart
-    const updatedCart = [...existingCart, cartItem];
-    
-    // Save updated cart to localStorage
-    localStorage.setItem('cart', JSON.stringify(updatedCart));
-    
-    toast({
-      title: "Éxito",
-      description: "Producto añadido al carrito correctamente.",
-    });
-    
-    // Usar la nueva ruta con marca en la URL para el carrito
-    if (marcaSlug) {
-      navigate(`/${marcaSlug}/carrito`);
-    } else if (selectedBrand) {
-      navigate(`/${selectedBrand.name.toLowerCase()}/carrito`);
-    } else {
-      navigate('/cart');
-    }
+    // No navegar automáticamente al carrito - el usuario puede continuar viendo productos
   };
 
   const handleImageChange = (index: number) => {
@@ -280,14 +301,22 @@ const ProductDetailPage = () => {
       <Button 
         variant="ghost" 
         onClick={() => {
-          // Regresar al catálogo con la marca en la URL
+          if (window.history.length > 1) {
+            navigate(-1);
+            return;
+          }
+          
           if (marcaSlug) {
             navigate(`/${marcaSlug}/catalogo`);
-          } else if (selectedBrand) {
-            navigate(`/${selectedBrand.name.toLowerCase()}/catalogo`);
-          } else {
-            navigate(-1);
+            return;
           }
+          
+          if (selectedBrand) {
+            navigate(`/${selectedBrand.name.toLowerCase()}/catalogo`);
+            return;
+          }
+          
+          navigate('/brand-selection');
         }}
         className="mb-6"
       >
@@ -295,7 +324,6 @@ const ProductDetailPage = () => {
       </Button>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Product Images */}
         <div>
           <div className="aspect-square overflow-hidden rounded-lg border mb-4">
             {product.images && product.images.length > 0 ? (
@@ -314,7 +342,6 @@ const ProductDetailPage = () => {
             )}
           </div>
           
-          {/* Thumbnail Gallery */}
           {product.images && product.images.length > 1 && (
             <div className="flex gap-2 overflow-x-auto pb-2">
               {product.images.map((image, index) => (
@@ -339,7 +366,6 @@ const ProductDetailPage = () => {
           )}
         </div>
         
-        {/* Product Info */}
         <div>
           <div className="mb-6">
             <p className="text-sm text-muted-foreground mb-1">{product.sku}</p>
@@ -359,7 +385,6 @@ const ProductDetailPage = () => {
             </div>
           )}
           
-          {/* Curve Type Selection */}
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-2">Tipo de Curva</h2>
             <RadioGroup 
@@ -388,7 +413,6 @@ const ProductDetailPage = () => {
             )}
           </div>
           
-          {/* Size Selection with Table */}
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-2">Stock</h2>
             <div className="text-sm text-muted-foreground mb-4">
@@ -463,14 +487,13 @@ const ProductDetailPage = () => {
             )}
           </div>
           
-          {/* Add to Cart Button */}
           <Button 
             className="w-full mt-4"
             onClick={handleAddToCart}
             disabled={Object.values(quantities).reduce((sum, qty) => sum + qty, 0) === 0}
           >
             <ShoppingCart className="mr-2 h-4 w-4" />
-            Añadir al Carrito
+            Añadir al pedido
           </Button>
         </div>
       </div>

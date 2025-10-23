@@ -12,7 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Trash2,
   ShoppingCart,
-  FileText,
   Plus,
   Minus,
   Download,
@@ -40,6 +39,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useBrand } from "@/contexts/brand-context";
 import { useAuth } from "@/contexts/auth-context";
+import { useCart } from "@/hooks/use-cart";
+import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -65,6 +66,7 @@ const CartPage = () => {
   const { selectedBrand } = useBrand();
   const { user } = useAuth();
   const { marcaSlug } = useParams<{ marcaSlug?: string }>();
+  const { clearCart } = useCart();
 
   useEffect(() => {
     loadCartItems();
@@ -77,33 +79,56 @@ const CartPage = () => {
       if (storedCart) {
         const parsedCart = JSON.parse(storedCart);
 
-        // Transformar los datos para mostrar las tallas de manera más amigable
-        const processedCart = parsedCart.map((item: CartItem) => {
-          const sizes = Object.entries(item.quantities)
-            .map(([sizeId, quantity]) => ({
-              id: sizeId,
-              name: getSizeName(sizeId), // Función auxiliar para obtener el nombre de la talla
-              quantity,
-            }))
-            .filter((size) => size.quantity > 0);
+        // Verificar si el carrito tiene la estructura esperada
+        if (Array.isArray(parsedCart)) {
+          // Transformar los datos para adaptarlos a la estructura esperada por CartPage
+          const processedCart = parsedCart.map((item) => {
+            const quantities: Record<string, number> = item.quantities || (typeof item.quantity === 'number' ? { 'standard': item.quantity } : {});
+            const totalQuantity = Object.values(quantities).reduce((sum, qty: number) => sum + Number(qty || 0), 0);
 
-          return {
-            ...item,
-            sizes,
-          };
-        });
+            // Intentar usar item.sizes si ya existe y es un array, sino construirlo desde quantities
+            let itemSizes: { id: string; name: string; quantity: number }[];
+            if (Array.isArray(item.sizes) && item.sizes.every(s => typeof s.id === 'string' && typeof s.name === 'string' && typeof s.quantity === 'number')) {
+              itemSizes = item.sizes.map(s => ({ ...s, quantity: Number(quantities[s.id] || s.quantity || 0) }));
+              // Asegurarse de que todas las tallas en quantities también estén en itemSizes
+              Object.entries(quantities).forEach(([sizeId, quantity]) => {
+                if (!itemSizes.find(s => s.id === sizeId)) {
+                  itemSizes.push({ id: sizeId, name: getSizeName(sizeId), quantity: Number(quantity || 0) });
+                }
+              });
+            } else {
+              itemSizes = Object.entries(quantities).map(([sizeId, quantity]) => ({
+                id: sizeId,
+                name: getSizeName(sizeId), // Esto sigue dependiendo de getSizeName
+                quantity: Number(quantity || 0),
+              }));
+            }
 
-        setCartItems(processedCart);
+            return {
+              productId: item.id || item.productId,
+              productName: item.name || item.productName,
+              productSku: item.sku || item.productSku || '',
+              productImage: item.image || (item.images && item.images.length > 0 ? item.images[0] : undefined),
+              price: Number(item.price || 0),
+              curveType: item.curveType || 'simple', // Leer curveType o default a 'simple'
+              quantities: quantities, // Ya es un Record<string, number>
+              totalQuantity: totalQuantity,
+              totalPrice: Number(item.price || 0) * totalQuantity,
+              sizes: itemSizes.filter(size => size.quantity > 0), // Filtrar tallas con cantidad 0
+            };
+          });
+
+          setCartItems(processedCart.filter(item => item.totalQuantity > 0) as CartItem[]); // Filtrar productos sin cantidad y castear
+        } else {
+          console.error("El formato del carrito almacenado no es válido");
+          setCartItems([]);
+        }
       } else {
         setCartItems([]);
       }
     } catch (error) {
-      console.error("Error loading cart:", error);
-      toast({
-        title: "Error",
-        description: "No se pudo cargar el carrito.",
-        variant: "destructive",
-      });
+      console.error("Error al cargar los items del carrito:", error);
+      setCartItems([]);
     } finally {
       setLoading(false);
     }
@@ -180,26 +205,126 @@ const CartPage = () => {
   };
 
   const emptyCart = () => {
+    clearCart(); // Usar la función del CartContext que ya maneja localStorage y toast
     setCartItems([]);
-    localStorage.removeItem("cart");
     setIsEmptyingCart(false);
-
-    toast({
-      title: "Carrito vacío",
-      description: "Se han eliminado todos los productos del carrito.",
-    });
   };
 
-  const proceedToCheckout = () => {
-    // Aquí implementaríamos la lógica para proceder al checkout
-    // Por ahora, solo mostraremos un mensaje
-    toast({
-      title: "Procesando pedido",
-      description: "Redirigiendo al proceso de checkout...",
-    });
+  const proceedToCheckout = async () => {
+    if (cartItems.length === 0) {
+      toast({
+        title: "Carrito vacío",
+        description: "Agrega productos al carrito antes de continuar.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // En una implementación real, redirigir a la página de checkout
-    // navigate('/checkout');
+    if (!user?.id) {
+      toast({
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para crear un pedido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedBrand?.name) {
+      toast({
+        title: "Error",
+        description: "No se ha seleccionado una marca válida.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('=== DEBUG CREAR PEDIDO ===');
+    console.log('Usuario completo:', user);
+    console.log('Marca seleccionada:', selectedBrand);
+    console.log('Items del carrito:', cartItems);
+    console.log('Total items:', getTotalItems());
+    console.log('Total precio:', getTotalPrice());
+    console.log('Datos que se enviarán:', {
+      user_id: user.id,
+      customer_name: user.name,
+      customer_email: user.email,
+      brand_name: selectedBrand.name,
+      total_items: getTotalItems(),
+      total_amount: getTotalPrice(),
+      status: 'pending'
+    });
+    console.log('============================');
+
+    try {
+      // Guardar el pedido en la base de datos
+      const orderData = {
+        user_id: user?.id,
+        customer_name: user?.name || 'Cliente',
+        customer_email: user?.email || '',
+        brand_name: selectedBrand?.name || 'Sin marca',
+        total_items: getTotalItems(),
+        total_amount: getTotalPrice(),
+        status: 'pending' as const,
+      };
+
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert(orderData)
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error('Error al crear el pedido:', orderError);
+        throw orderError;
+      }
+
+      console.log('Pedido creado exitosamente:', order);
+
+      // Guardar los items del pedido
+      const orderItems = cartItems.flatMap(item => 
+        item.sizes?.map(size => ({
+          order_id: order.id,
+          product_id: item.productId,
+          product_sku: item.productSku,
+          product_name: item.productName,
+          product_brand: selectedBrand?.name || 'Sin marca',
+          size: size.name,
+          quantity: size.quantity,
+          unit_price: item.price,
+          total_price: item.price * size.quantity,
+        })) || []
+      );
+
+      console.log('Items a insertar:', orderItems);
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) {
+        console.error('Error al crear los items del pedido:', itemsError);
+        throw itemsError;
+      }
+
+      console.log('Items del pedido creados exitosamente');
+
+      // Generar PDF y limpiar carrito
+      generateOrderPDF();
+      emptyCart();
+
+      toast({
+        title: "Pedido creado exitosamente",
+        description: `Tu pedido #${order.id.slice(0, 8)} ha sido registrado y se ha generado el PDF.`,
+      });
+
+    } catch (error: any) {
+      console.error('Error creating order:', error);
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear el pedido. Intenta nuevamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getTotalItems = () => {

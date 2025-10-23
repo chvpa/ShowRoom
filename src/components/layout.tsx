@@ -9,6 +9,7 @@ import {
   Clock,
   Users,
   ShoppingCart,
+  ShoppingBag,
   Menu,
   PanelRight
 } from "lucide-react";
@@ -63,6 +64,20 @@ const navItems: NavItem[] = [
     href: "/products",
     id: "products",
     roles: ["superadmin", "admin"],
+  },
+  {
+    icon: ShoppingBag,
+    label: "Pedidos",
+    href: "/orders",
+    id: "orders",
+    roles: ["superadmin", "admin"],
+  },
+  {
+    icon: ShoppingBag,
+    label: "Mis Pedidos",
+    href: "/my-orders",
+    id: "my-orders",
+    roles: ["cliente"],
   },
   {
     icon: Percent,

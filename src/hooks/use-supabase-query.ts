@@ -90,6 +90,45 @@ export function usePaginatedQuery<T>(
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
+  // Función para scroll to top automático
+  const scrollToTop = () => {
+    // Prioridad 1: Buscar marcador específico de productos
+    const productSection = document.querySelector('#products-section');
+    if (productSection) {
+      productSection.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+      return;
+    }
+
+    // Prioridad 2: Buscar el contenedor principal de productos o tabla
+    const productContainer = document.querySelector('[data-products-container]') || 
+                            document.querySelector('.space-y-6') ||
+                            document.querySelector('main');
+    
+    if (productContainer) {
+      productContainer.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+      return;
+    }
+
+    // Prioridad 3: Fallback - scroll al top de la ventana
+    window.scrollTo({ 
+      top: 0, 
+      behavior: 'smooth' 
+    });
+  };
+
+  // Función para cambiar página con scroll automático
+  const setPageWithScroll = (newPage: number) => {
+    setPage(newPage);
+    // Delay small para que el cambio de página se procese primero
+    setTimeout(scrollToTop, 100);
+  };
+
   // Función para pre-cargar la siguiente página
   const prefetchNextPage = async () => {
     await queryClient.prefetchQuery({
@@ -115,11 +154,11 @@ export function usePaginatedQuery<T>(
   return {
     ...result,
     page,
-    setPage,
+    setPage: setPageWithScroll, // Usar la versión con scroll automático
     pageSize,
-    // Funciones de paginación
-    nextPage: () => setPage(old => old + 1),
-    prevPage: () => setPage(old => Math.max(1, old - 1)),
-    goToPage: (pageNumber: number) => setPage(pageNumber),
+    // Funciones de paginación con scroll automático
+    nextPage: () => setPageWithScroll(page + 1),
+    prevPage: () => setPageWithScroll(Math.max(1, page - 1)),
+    goToPage: (pageNumber: number) => setPageWithScroll(pageNumber),
   };
 } 
