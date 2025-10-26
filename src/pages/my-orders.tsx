@@ -17,18 +17,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Package, 
-  Download, 
-  FileText, 
+import {
+  Package,
+  Download,
+  FileText,
   Loader2,
   ShoppingBag,
   Eye,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit,
+  XCircle
 } from "lucide-react";
 import { useSupabaseQuery } from '@/hooks/use-supabase-query';
 import { useAuth } from '@/contexts/auth-context';
 import { OrderWithDetails, OrderStatus, OrderItem } from '@/types';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from 'xlsx';
@@ -37,8 +51,11 @@ import { Helmet } from "react-helmet-async";
 const MyOrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState<OrderWithDetails | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Obtener pedidos del usuario actual
   const { 
@@ -364,6 +381,50 @@ const MyOrdersPage = () => {
     setIsDetailDialogOpen(true);
   };
 
+  // Función para navegar a la página de edición
+  const editOrder = (orderId: string) => {
+    navigate(`/pedido/${orderId}`);
+  };
+
+  // Función para cancelar pedido
+  const handleCancelOrder = (orderId: string) => {
+    setOrderToCancel(orderId);
+    setShowCancelDialog(true);
+  };
+
+  const confirmCancelOrder = async () => {
+    if (!orderToCancel) return;
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderToCancel);
+
+      if (error) throw error;
+
+      toast({
+        title: "Pedido cancelado",
+        description: "El pedido ha sido cancelado exitosamente",
+      });
+
+      setShowCancelDialog(false);
+      setOrderToCancel(null);
+      refetch(); // Recargar pedidos
+
+    } catch (error: any) {
+      console.error('Error cancelling order:', error);
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cancelar el pedido",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <Helmet>
@@ -444,7 +505,7 @@ const MyOrdersPage = () => {
                       }).format(order.total_amount)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 justify-end flex-wrap">
                         <Button
                           variant="outline"
                           size="sm"
@@ -453,6 +514,16 @@ const MyOrdersPage = () => {
                           <Eye className="h-4 w-4 mr-1" />
                           Ver
                         </Button>
+                        {order.status === 'pending' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => editOrder(order.id)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -469,6 +540,17 @@ const MyOrdersPage = () => {
                           <FileSpreadsheet className="h-4 w-4 mr-1" />
                           Excel
                         </Button>
+                        {order.status === 'pending' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCancelOrder(order.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Cancelar
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -597,6 +679,29 @@ const MyOrdersPage = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Cancel Order Confirmation Dialog */}
+        <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Cancelar este pedido?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción marcará el pedido como cancelado. Podrás crear un nuevo pedido si lo deseas.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setOrderToCancel(null)}>
+                No, mantener pedido
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmCancelOrder}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Sí, cancelar pedido
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </>
   );

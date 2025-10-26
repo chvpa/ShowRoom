@@ -22,6 +22,7 @@ const OffersPage = lazy(() => import("./pages/offers"));
 const PresalePage = lazy(() => import("./pages/presale"));
 const OrdersPage = lazy(() => import("./pages/orders"));
 const MyOrdersPage = lazy(() => import("./pages/my-orders"));
+const OrderDetailPage = lazy(() => import("./pages/order-detail"));
 const UsersPage = lazy(() => import("./pages/users"));
 const NotFoundPage = lazy(() => import("./pages/NotFound"));
 
@@ -325,7 +326,16 @@ const App = () => {
                           </Layout>
                         </ProtectedRoute>
                       } />
-                      
+
+                      {/* Order Detail - accessible by all authenticated users */}
+                      <Route path="/pedido/:orderId" element={
+                        <ProtectedRoute>
+                          <Layout activePage="my-orders">
+                            <OrderDetailPage />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+
                       <Route path="/presale" element={
                         <ProtectedRoute requiredRoles={['superadmin', 'admin']}>
                           <Layout activePage="presale">

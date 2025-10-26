@@ -308,14 +308,16 @@ const CartPage = () => {
 
       console.log('Items del pedido creados exitosamente');
 
-      // Generar PDF y limpiar carrito
-      generateOrderPDF();
+      // Limpiar carrito
       emptyCart();
 
       toast({
-        title: "Pedido creado exitosamente",
-        description: `Tu pedido #${order.id.slice(0, 8)} ha sido registrado y se ha generado el PDF.`,
+        title: "¡Pedido creado exitosamente!",
+        description: `Tu pedido #${order.id.slice(0, 8)} ha sido registrado. Revisa los detalles y descarga tus archivos.`,
       });
+
+      // Navegar a la página de detalle del pedido
+      navigate(`/pedido/${order.id}`);
 
     } catch (error: any) {
       console.error('Error creating order:', error);
@@ -816,9 +818,9 @@ const CartPage = () => {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col space-y-2">
-                <Button 
+                <Button
                   className="w-full"
-                  onClick={generateOrderPDF}
+                  onClick={proceedToCheckout}
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Finalizar Pedido

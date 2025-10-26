@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Shirt, Footprints, ChevronRight, Loader2, Backpack, Search, ShoppingCart } from 'lucide-react';
+import { Shirt, Footprints, ChevronRight, Loader2, Backpack, Search, ShoppingCart, Eye } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { useBrand } from '@/contexts/brand-context';
@@ -97,14 +97,26 @@ const ProductCard = ({ product }: { product: Product }) => {
         </CardContent>
       </div>
       
-      <CardFooter className="p-3 border-t bg-muted/30 mt-auto">
-        <Button 
-          onClick={handleAddToCart} 
-          size="sm" 
-          className="w-full flex items-center gap-2"
+      <CardFooter className="p-3 border-t bg-muted/30 mt-auto flex gap-2">
+        <Button
+          onClick={handleAddToCart}
+          size="sm"
+          className="flex-1 flex items-center justify-center gap-2"
         >
           <ShoppingCart size={16} />
-          Añadir al pedido
+          Añadir rápido
+        </Button>
+        <Button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleClick();
+          }}
+          size="sm"
+          variant="outline"
+          className="px-3"
+          title="Ver detalles del producto"
+        >
+          <Eye size={16} />
         </Button>
       </CardFooter>
       

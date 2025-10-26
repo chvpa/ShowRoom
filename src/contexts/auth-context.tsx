@@ -97,18 +97,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Initial auth check
     checkAuth();
-    
+
     // Subscribe to auth changes - OPTIMIZADO para evitar refrescos innecesarios
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state change:', event, session?.user?.id);
-      setSession(session);
-      
-      // Solo checkAuth si es un cambio real de sesión, no por cambios de foco
+      // IGNORAR eventos que no requieren acción (como cambios de foco de pestaña)
+      if (event === 'INITIAL_SESSION' || event === 'USER_UPDATED') {
+        return; // No hacer nada, evita recargas innecesarias
+      }
+
+      // Solo procesar eventos críticos
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        console.log('Auth event:', event); // Log solo eventos relevantes
+        setSession(session);
         checkAuth();
       }
     });
-    
+
     // Cleanup on unmount
     return () => {
       subscription.unsubscribe();
