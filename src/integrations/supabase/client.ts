@@ -18,6 +18,10 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
  * - Auto-refreshing of tokens
  * - Custom headers for monitoring
  */
+console.log('🔧 [SUPABASE] Inicializando cliente Supabase');
+console.log('🔧 [SUPABASE] URL:', SUPABASE_URL);
+console.log('🔧 [SUPABASE] Key presente:', !!SUPABASE_KEY);
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
   db: {
     schema: 'public',
@@ -25,7 +29,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false, // 🔥 FIX: Evitar detección automática de sesión en URL
+    detectSessionInUrl: true, // ✅ CAMBIO: Habilitar para detectar sesión después de login
+    storage: window.localStorage, // ✅ Asegurar que usa localStorage
+    storageKey: 'showroom-auth-token', // ✅ Key específica para este app
   },
   global: {
     headers: {
@@ -33,3 +39,5 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
     },
   },
 });
+
+console.log('✅ [SUPABASE] Cliente Supabase inicializado');

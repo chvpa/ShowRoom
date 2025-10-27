@@ -10,9 +10,9 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
-    react(),
-    mode === 'development' &&
-    componentTagger(),
+  // componentTagger() comentado para evitar warning de data-lov-id en React.Fragment
+  // mode === 'development' &&
+  // componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './dialog';
 import { Button } from './button';
 import { Badge } from './badge';
 import { ShoppingCart, Package, Eye, Check } from 'lucide-react';
@@ -82,9 +82,9 @@ export const QuickAddModal = ({ product, isOpen, onClose, onAddToCart }: QuickAd
               <DialogTitle className="text-xl mb-1">
                 Añadir al pedido
               </DialogTitle>
-              <DialogDescription className="space-y-1">
+              <div className="space-y-1">
                 <div className="font-medium text-foreground">{product.name}</div>
-                <div className="text-sm">SKU: {product.sku}</div>
+                <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
                 <div className="text-sm font-semibold text-primary">
                   {new Intl.NumberFormat('es-AR', {
                     style: 'currency',
@@ -92,7 +92,7 @@ export const QuickAddModal = ({ product, isOpen, onClose, onAddToCart }: QuickAd
                   }).format(product.price || 0)}
                   <span className="text-muted-foreground font-normal"> / unidad</span>
                 </div>
-              </DialogDescription>
+              </div>
             </div>
           </div>
         </DialogHeader>

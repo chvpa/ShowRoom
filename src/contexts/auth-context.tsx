@@ -50,28 +50,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Check authentication state - memoized with useCallback
   const checkAuth = useCallback(async () => {
     try {
+      console.log('🔍 [AUTH] Iniciando checkAuth...');
       setLoading(true);
       
-      // Check if there's a Supabase session
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      // Check if there's a Supabase session with timeout
+      console.log('🔍 [AUTH] Obteniendo sesión de Supabase...');
       
-      if (sessionError) throw sessionError;
+      // Agregar timeout de 5 segundos para evitar bloqueo infinito
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout al obtener sesión')), 5000)
+      );
+      
+      const { data: sessionData, error: sessionError } = await Promise.race([
+        sessionPromise,
+        timeoutPromise
+      ]) as any;
+      
+      if (sessionError) {
+        console.error('❌ [AUTH] Error al obtener sesión:', sessionError);
+        throw sessionError;
+      }
 
+      console.log('✅ [AUTH] Sesión obtenida:', sessionData.session ? 'Session activa' : 'No hay sesión');
       setSession(sessionData.session);
       
       // If session exists, get user data from our custom table
       if (sessionData.session) {
+        console.log('🔍 [AUTH] Consultando datos del usuario en tabla users...');
+        console.log('🔍 [AUTH] User ID:', sessionData.session.user.id);
+        
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*')
           .eq('id', sessionData.session.user.id)
           .single();
         
-        if (userError) throw userError;
+        if (userError) {
+          console.error('❌ [AUTH] Error al obtener usuario:', userError);
+          throw userError;
+        }
+        
+        console.log('✅ [AUTH] Usuario obtenido:', userData);
         
         if (userData) {
           // Check if user is active
           if (!userData.active) {
+            console.warn('⚠️ [AUTH] Usuario inactivo, cerrando sesión');
             await logout();
             toast({
               title: "Account deactivated",
@@ -81,40 +106,67 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             return;
           }
           
+          console.log('✅ [AUTH] Usuario activo, estableciendo en estado');
           setUser(userData as User);
+        } else {
+          console.warn('⚠️ [AUTH] No se encontraron datos del usuario');
         }
+      } else {
+        console.log('ℹ️ [AUTH] No hay sesión activa');
       }
+      
+      console.log('✅ [AUTH] checkAuth completado exitosamente');
     } catch (error) {
-      console.error('Authentication check error:', error);
+      console.error('❌ [AUTH] Error en checkAuth:', error);
       setUser(null);
       setSession(null);
     } finally {
+      console.log('🏁 [AUTH] Finalizando checkAuth, setLoading(false)');
       setLoading(false);
     }
   }, [toast]);
 
-  // Set up auth state listener
+  // Set up auth state listener - OPTIMIZADO MÁXIMO
   useEffect(() => {
+    let isMounted = true;
+    
+    console.log('🚀 [AUTH] Montando AuthProvider, ejecutando checkAuth inicial');
     // Initial auth check
     checkAuth();
 
-    // Subscribe to auth changes - OPTIMIZADO para evitar refrescos innecesarios
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // IGNORAR eventos que no requieren acción (como cambios de foco de pestaña)
-      if (event === 'INITIAL_SESSION' || event === 'USER_UPDATED') {
-        return; // No hacer nada, evita recargas innecesarias
+    // Subscribe to auth changes - Solo eventos CRÍTICOS
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('📡 [AUTH] Evento recibido:', event, 'isMounted:', isMounted);
+      
+      if (!isMounted) {
+        console.log('⏭️ [AUTH] Componente desmontado, ignorando evento');
+        return;
       }
-
-      // Solo procesar eventos críticos
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-        console.log('Auth event:', event); // Log solo eventos relevantes
+      
+      // SOLO procesar estos 2 eventos críticos
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        console.log('🔑 [AUTH] Evento crítico detectado:', event);
         setSession(session);
-        checkAuth();
+        await checkAuth();
+      }
+      
+      // TOKEN_REFRESHED: solo actualizar session, NO recargar usuario
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('🔄 [AUTH] Token refrescado, actualizando sesión sin recargar usuario');
+        setSession(session);
+        // NO llamar checkAuth(), el usuario no cambió
+      }
+      
+      // Ignorar completamente: INITIAL_SESSION, USER_UPDATED, PASSWORD_RECOVERY
+      if (!['SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED'].includes(event)) {
+        console.log('⏭️ [AUTH] Evento ignorado:', event);
       }
     });
 
     // Cleanup on unmount
     return () => {
+      console.log('🧹 [AUTH] Desmontando AuthProvider');
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, [checkAuth]);

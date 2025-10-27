@@ -1838,15 +1838,24 @@ npm install
   - ✅ Índices de rendimiento creados
   - ✅ Foreign keys configurados
 
-- [ ] **Aplicar políticas RLS a tablas existentes**
-  - `users` table
-  - `brands` table
-  - `user_brands` table
-  - `categories` table
+- [x] ~~**Scripts SQL para RLS creados**~~ ✅ COMPLETADO
+  - ✅ Script `apply-rls-remaining-tables.sql` creado
+  - ✅ Script `verify-rls-status.sql` creado
+  - ✅ Guía de seguridad `SECURITY_GUIDE.md` creada
+  - 🔴 **PENDIENTE**: Ejecutar scripts en Supabase (requiere acceso manual)
+
+- [ ] **Aplicar políticas RLS a tablas existentes** (Manual)
+  - `users` table - Script listo ✅
+  - `brands` table - Script listo ✅
+  - `user_brands` table - Script listo ✅
+  - `categories` table - Script listo ✅
 
 - [ ] **Commit de archivos nuevos**
   - `ORDERS_MODULE_README.md`
   - `sql/create-orders-table.sql`
+  - `sql/apply-rls-remaining-tables.sql` ⭐ NUEVO
+  - `sql/verify-rls-status.sql` ⭐ NUEVO
+  - `SECURITY_GUIDE.md` ⭐ NUEVO
   - `src/components/ui/quick-add-modal.tsx` (MEJORADO)
   - `src/contexts/cart-context.tsx`
   - `src/hooks/use-cart.ts`
@@ -2240,7 +2249,26 @@ git push origin feature/nueva-funcionalidad
    - ✅ Políticas RLS aplicadas
    - ✅ Migraciones ejecutadas vía MCP
 
-2. **PROBAR EL FLUJO COMPLETO** 🔴 URGENTE
+2. ~~**Crear scripts SQL para RLS**~~ ✅ COMPLETADO
+   - ✅ Script `apply-rls-remaining-tables.sql` creado
+   - ✅ Script `verify-rls-status.sql` creado
+   - ✅ `SECURITY_GUIDE.md` con instrucciones completas
+   - 🔴 **PENDIENTE**: Ejecutar manualmente en Supabase
+
+3. **APLICAR RLS MANUALMENTE** 🔴 URGENTE
+   ```
+   1. Ir a Supabase Dashboard → SQL Editor
+   2. Abrir sql/apply-rls-remaining-tables.sql
+   3. Copiar TODO el contenido
+   4. Pegar en SQL Editor
+   5. Click "Run" (Ctrl+Enter)
+   6. Verificar mensajes de éxito
+   7. Ejecutar sql/verify-rls-status.sql para validar
+   
+   Ver SECURITY_GUIDE.md para detalles completos
+   ```
+
+4. **PROBAR EL FLUJO COMPLETO** 🔴 URGENTE
    ```
    REINICIAR SERVIDOR:
    - Detener servidor (Ctrl+C)
@@ -2262,15 +2290,17 @@ git push origin feature/nueva-funcionalidad
    12. Verificar que cliente ya NO puede editar
    ```
 
-3. **Commit de cambios**
+5. **Commit de cambios**
    ```bash
    git add .
-   git commit -m "feat: módulo completo de pedidos con edición y permisos dinámicos
+   git commit -m "feat: módulo completo de pedidos con scripts RLS y seguridad
 
    - Nueva página /pedido/:orderId con edición inline
    - Quick Add Modal mejorado con mejor UX
    - Botones Editar/Cancelar en My Orders
    - Políticas RLS condicionales (solo pending para clientes)
+   - Scripts SQL para RLS en tablas pendientes
+   - SECURITY_GUIDE.md con instrucciones completas
    - Navegación optimizada post-checkout
 
    🎯 Generated with Claude Code"
@@ -2350,21 +2380,34 @@ Este proyecto es una **aplicación B2B completa y funcional** para gestión de c
 
 **Próximo milestone:**
 1. ✅ ~~Ejecutar SQL de órdenes~~ COMPLETADO
-2. 🔴 **PROBAR FLUJO COMPLETO** (reiniciar servidor primero)
-3. Commit de cambios
-4. Deploy a producción
+2. ✅ ~~Crear scripts SQL para RLS~~ COMPLETADO
+3. 🔴 **APLICAR RLS MANUALMENTE** (Supabase SQL Editor)
+4. 🔴 **PROBAR FLUJO COMPLETO** (reiniciar servidor primero)
+5. Commit de cambios
+6. Deploy a producción
 
-**Tiempo estimado para producción:** 30 minutos (solo testing + commit)
+**Tiempo estimado para producción:** 45 minutos
+- Aplicar RLS: 5 min
+- Testing: 30 min
+- Commit + Deploy: 10 min
 
 **Mejoras implementadas en esta sesión:**
-- Sistema de pedidos end-to-end funcional
-- Edición de pedidos con permisos según estado
-- UX mejorada significativamente
-- Base de datos completamente configurada
+- Sistema de pedidos end-to-end funcional ✅
+- Edición de pedidos con permisos según estado ✅
+- UX mejorada significativamente (Quick Add Modal) ✅
+- Base de datos completamente configurada ✅
+- **Scripts SQL de seguridad RLS creados** ✅ NUEVO
+- **SECURITY_GUIDE.md completa** ✅ NUEVO
+- Scripts de verificación de RLS ✅ NUEVO
+
+**Archivos nuevos creados:**
+- `sql/apply-rls-remaining-tables.sql` - Políticas RLS para users, brands, user_brands, categories
+- `sql/verify-rls-status.sql` - Verificación del estado de RLS
+- `SECURITY_GUIDE.md` - Guía completa de seguridad con instrucciones paso a paso
 
 ---
 
-*Documento actualizado el 2025-10-23 22:30*
-*Versión: 2.0*
+*Documento actualizado el 2025-10-27*
+*Versión: 2.1*
 *Autor: Claude Code Assistant*
-*Última actualización: Módulo de Pedidos Completo con Edición*
+*Última actualización: Scripts RLS + Guía de Seguridad*
